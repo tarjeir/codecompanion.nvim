@@ -1,4 +1,5 @@
 local log = require("codecompanion.utils.log")
+local message_utils = require("codecompanion.utils.messages")
 
 local perplexity_models = {
   "llama-3.1-sonar-small-128k-online",
@@ -74,6 +75,7 @@ return {
     ---@param messages table Format is: { { role = "user", content = "Your prompt here" } }
     ---@return table
     form_messages = function(self, messages)
+      messages = message_utils.merge_messages(messages)
       return { messages = messages }
     end,
 
