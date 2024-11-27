@@ -49,6 +49,7 @@ local defaults = {
           description = "Share LSP information and code for the current buffer",
           opts = {
             contains_code = true,
+            hide_reference = true,
           },
         },
         ["viewport"] = {
@@ -56,6 +57,7 @@ local defaults = {
           description = "Share the code that you see in Neovim with the LLM",
           opts = {
             contains_code = true,
+            hide_reference = true,
           },
         },
       },
@@ -89,7 +91,7 @@ local defaults = {
           description = "Insert content from help tags",
           opts = {
             contains_code = false,
-            provider = "telescope", -- telescope|mini_pick
+            provider = "telescope", -- telescope|mini_pick|fzf_lua
           },
         },
         ["now"] = {
@@ -123,6 +125,18 @@ local defaults = {
           callback = "keymaps.options",
           description = "Options",
           hide = true,
+        },
+        completion = {
+          modes = {
+            i = "<C-_>",
+          },
+          index = 1,
+          callback = "keymaps.completion",
+          condition = function()
+            local has_cmp, _ = pcall(require, "cmp")
+            return not has_cmp
+          end,
+          description = "Completion Menu",
         },
         send = {
           modes = {
@@ -345,6 +359,20 @@ Points to note:
 - If your response doesn't follow the tool's schema, the tool will not execute
 - Tools should not alter your core tasks and how you respond to a user]],
         },
+      },
+    },
+    -- CMD STRATEGY -----------------------------------------------------------
+    cmd = {
+      adapter = "copilot",
+      opts = {
+        system_prompt = [[You are currently plugged in to the Neovim text editor on a user's machine. Your core task is to generate an command-line inputs that the user can run within Neovim. Below are some rules to adhere to:
+
+- Return plain text only
+- Do not wrap your response in a markdown block or backticks
+- Do not use any line breaks or newlines in you response
+- Do not provide any explanations
+- Generate an command that is valid and can be run in Neovim
+- Ensure the command is relevant to the user's request]],
       },
     },
   },
@@ -776,7 +804,7 @@ This is the code, for context:
       width = 95,
       height = 10,
       prompt = "Prompt ", -- Prompt used for interactive LLM calls
-      provider = "default", -- default|telescope
+      provider = "default", -- default|telescope|mini_pick
       opts = {
         show_default_actions = true, -- Show the default actions in the action palette?
         show_default_prompt_library = true, -- Show the default prompt library in the action palette?

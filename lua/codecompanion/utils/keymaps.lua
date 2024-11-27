@@ -5,13 +5,26 @@ local plugin_maps = require("codecompanion.keymaps")
 
 local M = {}
 
+---Get the current position of the cursor when the keymap was triggered
+---@return table
+local function get_position_info()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  return {
+    line = vim.api.nvim_get_current_line(),
+    row = cursor[1],
+    col = cursor[2] + 1,
+  }
+end
+
 ---@param rhs string|table|fun()
----@return string|fun(table) rhs
+---@return string|fun(table)|boolean rhs
 ---@return table opts
 ---@return string|nil mode
 local function resolve(rhs)
   if type(rhs) == "string" and vim.startswith(rhs, "keymaps.") then
     return resolve(plugin_maps[vim.split(rhs, ".", { plain = true })[2]])
+  elseif type(rhs) == "function" then
+    return rhs, {}
   elseif type(rhs) == "table" then
     local opts = vim.deepcopy(rhs)
     local callback = opts.callback
@@ -37,15 +50,17 @@ function M.set(keymaps, bufnr, data)
   for _, map in pairs(keymaps) do
     local callback
     local rhs, action_opts = resolve(map.callback)
+    if type(map.condition) == "function" and not map.condition() then
+      goto continue
+    end
+
     local opts = { desc = map.description or action_opts.desc, buffer = bufnr }
 
     if type(rhs) == "function" then
       callback = function()
-        if data then
-          rhs(data)
-        else
-          rhs()
-        end
+        data = data or {}
+        data.position = get_position_info()
+        rhs(data)
       end
     else
       callback = rhs
@@ -62,6 +77,7 @@ function M.set(keymaps, bufnr, data)
         end
       end
     end
+    ::continue::
   end
 end
 

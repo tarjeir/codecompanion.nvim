@@ -65,10 +65,8 @@ Install the plugin with your preferred package manager:
   dependencies = {
     "nvim-lua/plenary.nvim",
     "nvim-treesitter/nvim-treesitter",
-    "hrsh7th/nvim-cmp", -- Optional: For using slash commands and variables in the chat buffer
-    "nvim-telescope/telescope.nvim", -- Optional: For using slash commands
-    { "MeanderingProgrammer/render-markdown.nvim", ft = { "markdown", "codecompanion" } }, -- Optional: For prettier markdown rendering
-    { "stevearc/dressing.nvim", opts = {} }, -- Optional: Improves `vim.ui.select`
+    -- The following are optional:
+    { "MeanderingProgrammer/render-markdown.nvim", ft = { "markdown", "codecompanion" } },
   },
   config = true
 }
@@ -85,10 +83,8 @@ use({
   requires = {
     "nvim-lua/plenary.nvim",
     "nvim-treesitter/nvim-treesitter",
-    "hrsh7th/nvim-cmp", -- Optional: For using slash commands and variables in the chat buffer
-    "nvim-telescope/telescope.nvim", -- Optional: For using slash commands
-    { "MeanderingProgrammer/render-markdown.nvim", ft = { "markdown", "codecompanion" } }, -- Optional: For prettier markdown rendering
-    "stevearc/dressing.nvim" -- Optional: Improves `vim.ui.select`
+    -- The following are optional:
+    { "MeanderingProgrammer/render-markdown.nvim", ft = { "markdown", "codecompanion" } },
   }
 })
 ```
@@ -100,10 +96,9 @@ call plug#begin()
 
 Plug 'nvim-lua/plenary.nvim'
 Plug 'nvim-treesitter/nvim-treesitter'
-Plug 'hrsh7th/nvim-cmp', " Optional: For using slash commands and variables in the chat buffer
-Plug 'nvim-telescope/telescope.nvim', " Optional: For using slash commands
-Plug 'stevearc/dressing.nvim' " Optional: Improves `vim.ui.select`
-Plug 'MeanderingProgrammer/render-markdown.nvim' " Optional: For prettier markdown rendering
+" -- The following are optional
+Plug 'MeanderingProgrammer/render-markdown.nvim'
+" --
 Plug 'olimorris/codecompanion.nvim'
 
 call plug#end()
@@ -116,7 +111,7 @@ EOF
 > [!IMPORTANT]
 > The plugin requires the markdown Tree-sitter parser to be installed with `:TSInstall markdown`
 
-[Telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) is a suggested inclusion as it makes leveraging the Slash Commands a little bit prettier. However, other providers are available. Please refer to the [Chat Buffer](#speech_balloon-the-chat-buffer) section for more information.
+To better utilise Slash Commands, [Telescope.nvim](https://github.com/nvim-telescope/telescope.nvim), [mini.pick](https://github.com/echasnovski/mini.pick) or [fzf lua](https://github.com/ibhagwan/fzf-lua) can also be installed. Please refer to the [Chat Buffer](#speech_balloon-the-chat-buffer) section for more information.
 
 As per [#377](https://github.com/olimorris/codecompanion.nvim/issues/377), if you pin your plugins to the latest releases, consider setting plenary.nvim to:
 
@@ -170,8 +165,8 @@ Tools can also be grouped together to form _Agents_, which are also accessed via
 
 - `@full_stack_dev` - Contains the `cmd_runner`, `editor` and `files` tools.
 
-> [!TIP]
-> Press `?` in the chat buffer to reveal the keymaps and options that are available.
+> [!IMPORTANT]
+> These have been designed to work with native Neovim completions and also with [nvim-cmp](https://github.com/hrsh7th/nvim-cmp). To open the completion menu use `<C-_>` in insert mode when in the chat buffer.
 
 **Inline Assistant**
 
@@ -201,6 +196,10 @@ For convenience, you can call prompts from the [prompt library](#clipboard-promp
 
 There are keymaps available to accept or reject edits from the LLM in the [inline assistant](#pencil2-inline-assistant) section.
 
+**Commands**
+
+Use CodeCompanion to create Neovim commands in command-line mode (`:h Command-line`) via `:CodeCompanionCmd <your prompt>`.
+
 **Action Palette**
 
 <!-- panvimdoc-ignore-start -->
@@ -222,6 +221,7 @@ The plugin has three core commands:
 
 - `CodeCompanion` - Open the inline assistant
 - `CodeCompanionChat` - Open a chat buffer
+- `CodeCompanionCmd` - Generate a command in the command-liine
 - `CodeCompanionActions` - Open the _Action Palette_
 
 However, there are multiple options available:
@@ -306,9 +306,9 @@ require("codecompanion").setup({
   }
 })
 ```
-**Changing the Language**
+**Changing the language**
 
-CodeCompanion supports multiple languages for non-code responses. You can configure this in your setup:
+The plugin enables the language for non-code responses to be changed. You can configure this in your setup:
 
 ```lua
 require('codecompanion').setup({
@@ -318,9 +318,53 @@ require('codecompanion').setup({
 })
 ```
 
+**Changing or adding to the default keymaps**
+
+The [chat buffer](speech_balloon-the-chat-buffer) comes with a number of pre-defined keymaps which you can customize:
+
+```lua
+require('codecompanion').setup({
+  strategies = {
+    chat = {
+      keymaps = {
+        send = {
+          modes = {
+            -- Only send a response to the LLM with <C-s>
+            n = { "<C-s>" },
+          },
+        },
+      }
+    }
+  }
+})
+```
+
+You can also add your own keymaps:
+
+```lua
+require('codecompanion').setup({
+  strategies = {
+    chat = {
+      keymaps = {
+        hide = {
+          modes = {
+            n = "gh",
+          },
+          --  Add your own custom callback that receives the chat buffer object
+          callback = function(chat)
+            chat.ui:hide()
+          end,
+          description = "Hide the chat buffer",
+        },
+      }
+    }
+  }
+})
+```
+
 **Using with render-markdown.nvim**
 
-If you use the fantastic [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) plugin, then please ensure you turn off the `render_headers` display option:
+If you use the fantastic [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) plugin, then please you can turn off the `render_headers` display option for a cleaner chat buffer:
 
 ```lua
 require("codecompanion").setup({
@@ -466,7 +510,9 @@ require("codecompanion").setup({
           endpoint = 'YOUR_AZURE_OPENAI_ENDPOINT',
         },
         schema = {
-          model = "YOUR_DEPLOYMENT_NAME",
+          model = {
+            default = "YOUR_DEPLOYMENT_NAME",
+          }
         },
       })
     end,
@@ -588,8 +634,9 @@ When in the chat buffer, press `?` to bring up a menu that lists the available k
 - `{` to move to the previous chat
 - `}` to move to the next chat
 
-> [!NOTE]
-> There are also corresponding insert mode mappings available.
+and in insert mode:
+
+- `<C-_>` to open the completion menu (if nvim-cmp isn't installed)
 
 **Settings**
 
@@ -601,6 +648,8 @@ As outlined in the [Quickstart](#rocket-quickstart) section, Slash Commands allo
 
 - `/buffer` - Has `default`, `telescope` and `fzf_lua` providers
 - `/files` - Has `default`, `telescope`, `mini_pick` and `fzf_lua` providers
+- `/help` - Has `telescope`, `mini_pick` and `fzf_lua` providers
+- `/symbols` - Has `default`, `telescope`, `mini_pick` and `fzf_lua` providers
 
 Please refer to [the config](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua) to see how to change the default provider.
 

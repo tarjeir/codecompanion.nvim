@@ -1,5 +1,194 @@
 # Changelog
 
+## [10.3.0](https://github.com/olimorris/codecompanion.nvim/compare/v10.2.4...v10.3.0) (2024-11-27)
+
+
+### Features
+
+* **chat:** keymaps can be custom functions ([5f729f9](https://github.com/olimorris/codecompanion.nvim/commit/5f729f91a6b6a4025f8e4753d2c2c29810da0149))
+
+## [10.2.4](https://github.com/olimorris/codecompanion.nvim/compare/v10.2.3...v10.2.4) (2024-11-25)
+
+
+### Bug Fixes
+
+* **chat:** slash commands from prompt library not visible ([3376f60](https://github.com/olimorris/codecompanion.nvim/commit/3376f6052217737cb936236d9069bd4a63ccbace))
+
+## [10.2.3](https://github.com/olimorris/codecompanion.nvim/compare/v10.2.2...v10.2.3) (2024-11-25)
+
+
+### Bug Fixes
+
+* mini.pick as action_palette provider ([adeb7c4](https://github.com/olimorris/codecompanion.nvim/commit/adeb7c42fb7fb1187c64773a46d5bfee8f85dacf))
+
+## [10.2.2](https://github.com/olimorris/codecompanion.nvim/compare/v10.2.1...v10.2.2) (2024-11-24)
+
+
+### Bug Fixes
+
+* **tools:** rejected cmd tools close properly ([50d0d25](https://github.com/olimorris/codecompanion.nvim/commit/50d0d2543ed3115477cfacfd80db0e029857127e))
+
+## [10.2.1](https://github.com/olimorris/codecompanion.nvim/compare/v10.2.0...v10.2.1) (2024-11-24)
+
+
+### Bug Fixes
+
+* **utils:** visual selection range no longer uses feedkeys ([e981da2](https://github.com/olimorris/codecompanion.nvim/commit/e981da23ae0e900a4086e8dcbc0b6abf86b737a9))
+
+## [10.2.0](https://github.com/olimorris/codecompanion.nvim/compare/v10.1.2...v10.2.0) (2024-11-23)
+
+
+### Features
+
+* **keymaps:** add condition logic ([c4eb21e](https://github.com/olimorris/codecompanion.nvim/commit/c4eb21e89ecf466416b75395ac00bf3db83838e7))
+
+
+### Bug Fixes
+
+* **config:** wrap completion condition in pcall ([d19ae05](https://github.com/olimorris/codecompanion.nvim/commit/d19ae05f561a7d3b5d311453285996e84cc925de))
+
+## [10.1.2](https://github.com/olimorris/codecompanion.nvim/compare/v10.1.1...v10.1.2) (2024-11-22)
+
+
+### Bug Fixes
+
+* **keymaps:** completion menu is now `&lt;c-_&gt;` ([24f296b](https://github.com/olimorris/codecompanion.nvim/commit/24f296bd2382bc9f50d387b5ac849410d6c2d491))
+
+## [10.1.1](https://github.com/olimorris/codecompanion.nvim/compare/v10.1.0...v10.1.1) (2024-11-22)
+
+
+### Bug Fixes
+
+* **completion:** setting of keymaps ([03fbb0a](https://github.com/olimorris/codecompanion.nvim/commit/03fbb0ac20d3a028d9462efe49f3d53b60e92a8a))
+
+## [10.1.0](https://github.com/olimorris/codecompanion.nvim/compare/v10.0.4...v10.1.0) (2024-11-22)
+
+
+### Features
+
+* add native completions ([a1147f8](https://github.com/olimorris/codecompanion.nvim/commit/a1147f8133707251603525acf6a87f5c12ef3a70))
+
+
+### Bug Fixes
+
+* **slash_commands:** fetch doesn't error on no input ([be9e36c](https://github.com/olimorris/codecompanion.nvim/commit/be9e36c217f15ff53b06c9eb2ba7c42de026dc70))
+
+## [10.0.4](https://github.com/olimorris/codecompanion.nvim/compare/v10.0.3...v10.0.4) (2024-11-21)
+
+
+### Bug Fixes
+
+* **tools:** editor diff should be cleared on_exit ([b143ee0](https://github.com/olimorris/codecompanion.nvim/commit/b143ee0831c59fe2ad3582883c09a24f6659b7b0))
+
+## [10.0.3](https://github.com/olimorris/codecompanion.nvim/compare/v10.0.2...v10.0.3) (2024-11-21)
+
+
+### Bug Fixes
+
+* opening existing chats from the action palette ([59823c2](https://github.com/olimorris/codecompanion.nvim/commit/59823c232da7cbbc8a5fde5edbbf32578bd653b4))
+
+## [10.0.2](https://github.com/olimorris/codecompanion.nvim/compare/v10.0.1...v10.0.2) (2024-11-21)
+
+
+### Bug Fixes
+
+* **tools:** [#467](https://github.com/olimorris/codecompanion.nvim/issues/467) reading of files on disk ([034ed9e](https://github.com/olimorris/codecompanion.nvim/commit/034ed9eec8f8726cc30f9854d92d6f608e399717))
+
+## [10.0.1](https://github.com/olimorris/codecompanion.nvim/compare/v10.0.0...v10.0.1) (2024-11-20)
+
+
+### Bug Fixes
+
+* **diff:** is_visible() a nil value in default diff ([8d7a796](https://github.com/olimorris/codecompanion.nvim/commit/8d7a7965095925039dbfe34f56b0d72920e67545))
+
+## [10.0.0](https://github.com/olimorris/codecompanion.nvim/compare/v9.12.4...v10.0.0) (2024-11-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **adapters:** azure_openai deployment model mapping
+
+### Bug Fixes
+
+* **adapters:** azure_openai deployment model mapping ([907e47a](https://github.com/olimorris/codecompanion.nvim/commit/907e47ac490a9ab91be8db820e99be6845e0cdc5))
+
+## [9.12.4](https://github.com/olimorris/codecompanion.nvim/compare/v9.12.3...v9.12.4) (2024-11-20)
+
+
+### Bug Fixes
+
+* **openai:** [#458](https://github.com/olimorris/codecompanion.nvim/issues/458) handle models being a function ([041193b](https://github.com/olimorris/codecompanion.nvim/commit/041193b1b238d7b4980847a24c19c74dcf080029))
+
+## [9.12.3](https://github.com/olimorris/codecompanion.nvim/compare/v9.12.2...v9.12.3) (2024-11-20)
+
+
+### Bug Fixes
+
+* **chat:** display tokens in chat buffer ([de55dd5](https://github.com/olimorris/codecompanion.nvim/commit/de55dd5c270e486cebf2d11861da41d816926051))
+
+## [9.12.2](https://github.com/olimorris/codecompanion.nvim/compare/v9.12.1...v9.12.2) (2024-11-20)
+
+
+### Bug Fixes
+
+* **cmd:** users can now change adapters ([ec2e4df](https://github.com/olimorris/codecompanion.nvim/commit/ec2e4dfedbaf35fa79f03d9f73c4cf4089425359))
+
+## [9.12.1](https://github.com/olimorris/codecompanion.nvim/compare/v9.12.0...v9.12.1) (2024-11-19)
+
+
+### Bug Fixes
+
+* **inline:** [#426](https://github.com/olimorris/codecompanion.nvim/issues/426) concat of lines ([34beee3](https://github.com/olimorris/codecompanion.nvim/commit/34beee3a1f5e97cde61bd906afa9ddd534aeb88c))
+* **openai:** support streaming in o1 models ([7c77a82](https://github.com/olimorris/codecompanion.nvim/commit/7c77a82b1c726734c6b6022b3f4b657660e37b57))
+
+## [9.12.0](https://github.com/olimorris/codecompanion.nvim/compare/v9.11.2...v9.12.0) (2024-11-19)
+
+
+### Features
+
+* :sparkles: `CodeCompanionCmd` to write command-line commands ([da52e53](https://github.com/olimorris/codecompanion.nvim/commit/da52e53bcc69fb00c28e19edce61f927af2e683d))
+
+## [9.11.2](https://github.com/olimorris/codecompanion.nvim/compare/v9.11.1...v9.11.2) (2024-11-19)
+
+
+### Bug Fixes
+
+* **chat:** [#450](https://github.com/olimorris/codecompanion.nvim/issues/450) no longer remove autocmds ([ca1e4d8](https://github.com/olimorris/codecompanion.nvim/commit/ca1e4d837d224fc879e031fcea4613c29fade1c0))
+
+## [9.11.1](https://github.com/olimorris/codecompanion.nvim/compare/v9.11.0...v9.11.1) (2024-11-19)
+
+
+### Bug Fixes
+
+* **keymaps:** closing and opening chat buffer ([91a08d7](https://github.com/olimorris/codecompanion.nvim/commit/91a08d76d47e16f3779545b1f4267a1eb0be1cb1))
+
+## [9.11.0](https://github.com/olimorris/codecompanion.nvim/compare/v9.10.0...v9.11.0) (2024-11-19)
+
+
+### Features
+
+* **mini_pick:** allow multi selection in /files ([#444](https://github.com/olimorris/codecompanion.nvim/issues/444)) ([68e0610](https://github.com/olimorris/codecompanion.nvim/commit/68e0610fa847ad818f621006746ff4a5f911371f))
+
+
+### Bug Fixes
+
+* **chat:** [#447](https://github.com/olimorris/codecompanion.nvim/issues/447) moving between windows ([d3e88dd](https://github.com/olimorris/codecompanion.nvim/commit/d3e88dd8f66bf746d361c8ba96e862d4e3e4aa0f))
+* OpenAI-compatible adapter ([#446](https://github.com/olimorris/codecompanion.nvim/issues/446)) ([3bfc575](https://github.com/olimorris/codecompanion.nvim/commit/3bfc575dd69e43cb1b2d01868f1689d024d3bbe4))
+
+## [9.10.0](https://github.com/olimorris/codecompanion.nvim/compare/v9.9.1...v9.10.0) (2024-11-17)
+
+
+### Features
+
+* **chat:** tools and variables are now added to references ([a291a05](https://github.com/olimorris/codecompanion.nvim/commit/a291a05233f8ecf7b86a163dcd8bd349f319ff43))
+
+## [9.9.1](https://github.com/olimorris/codecompanion.nvim/compare/v9.9.0...v9.9.1) (2024-11-17)
+
+
+### Bug Fixes
+
+* **chat:** changing model always changes settings ([318f40d](https://github.com/olimorris/codecompanion.nvim/commit/318f40d35bb53d663f8f80f26737b69430fe1c55))
+
 ## [9.9.0](https://github.com/olimorris/codecompanion.nvim/compare/v9.8.2...v9.9.0) (2024-11-16)
 
 

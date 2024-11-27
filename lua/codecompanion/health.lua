@@ -17,21 +17,6 @@ M.plugins = {
     name = "nvim-treesitter",
     plugin_name = "nvim-treesitter",
   },
-  {
-    name = "nvim-cmp",
-    plugin_name = "cmp",
-    optional = true,
-  },
-  {
-    name = "telescope.nvim",
-    plugin_name = "telescope",
-    optional = true,
-  },
-  {
-    name = "dressing.nvim",
-    plugin_name = "dressing",
-    optional = true,
-  },
 }
 
 M.parsers = {

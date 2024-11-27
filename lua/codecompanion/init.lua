@@ -151,6 +151,42 @@ M.chat = function(args)
   })
 end
 
+---Create a cmd
+---@return nil
+M.cmd = function(args)
+  local context = context_utils.get(api.nvim_get_current_buf(), args)
+
+  return require("codecompanion.strategies.cmd")
+    .new({
+      context = context,
+      prompts = {
+        {
+          role = config.constants.SYSTEM_ROLE,
+          content = string.format(
+            [[Some additional context which **may** be useful:
+
+- The user is currently working in a %s file
+- It has %d lines
+- The user is currently on line %d
+- The file's full path is %s]],
+            context.filetype,
+            context.line_count,
+            context.cursor_pos[1],
+            context.filename
+          ),
+          opts = {
+            visible = false,
+          },
+        },
+        {
+          role = config.constants.USER_ROLE,
+          content = args.args,
+        },
+      },
+    })
+    :start(args)
+end
+
 ---Toggle the chat buffer
 ---@return nil
 M.toggle = function()
@@ -160,13 +196,13 @@ M.toggle = function()
     return M.chat()
   end
 
-  if chat:is_visible() then
-    return chat:hide()
+  if chat.ui:is_visible() then
+    return chat.ui:hide()
   end
 
   chat.context = context_utils.get(api.nvim_get_current_buf())
   M.close_last_chat()
-  chat:open()
+  chat.ui:open()
 end
 
 ---Return a chat buffer
@@ -204,8 +240,8 @@ M.setup = function(opts)
     return api.nvim_err_writeln("CodeCompanion.nvim requires Neovim 0.10.0+")
   end
 
+  -- Setup the plugin's config
   config.setup(opts)
-
   if opts and opts.adapters then
     require("codecompanion.utils.adapters").extend(config.adapters, opts.adapters)
   end
@@ -271,6 +307,10 @@ M.setup = function(opts)
     handlers = {
       {
         type = "echo",
+        level = vim.log.levels.ERROR,
+      },
+      {
+        type = "notify",
         level = vim.log.levels.WARN,
       },
       {
@@ -284,17 +324,17 @@ M.setup = function(opts)
   -- Setup cmp
   local has_cmp, cmp = pcall(require, "cmp")
   if has_cmp then
+    cmp.register_source("codecompanion_models", require("cmp_codecompanion.models").new(config))
+    cmp.register_source("codecompanion_slash_commands", require("cmp_codecompanion.slash_commands").new(config))
     cmp.register_source("codecompanion_tools", require("cmp_codecompanion.tools").new(config))
     cmp.register_source("codecompanion_variables", require("cmp_codecompanion.variables").new())
-    cmp.register_source("codecompanion_slash_commands", require("cmp_codecompanion.slash_commands").new(config))
-    cmp.register_source("codecompanion_models", require("cmp_codecompanion.models").new(config))
     cmp.setup.filetype("codecompanion", {
       enabled = true,
       sources = {
+        { name = "codecompanion_models" },
+        { name = "codecompanion_slash_commands" },
         { name = "codecompanion_tools" },
         { name = "codecompanion_variables" },
-        { name = "codecompanion_slash_commands" },
-        { name = "codecompanion_models" },
       },
     })
   end

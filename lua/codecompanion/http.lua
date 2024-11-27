@@ -4,7 +4,7 @@ local Path = require("plenary.path")
 local config = require("codecompanion.config")
 local log = require("codecompanion.utils.log")
 local schema = require("codecompanion.schema")
-local util = require("codecompanion.utils.util")
+local util = require("codecompanion.utils")
 
 ---@class CodeCompanion.Client
 ---@field adapter CodeCompanion.Adapter
@@ -28,7 +28,7 @@ Client.static.opts = {
 ---@field user_args nil|table
 
 ---@param args CodeCompanion.ClientArgs
----@return CodeCompanion.Client
+---@return table
 function Client.new(args)
   args = args or {}
 

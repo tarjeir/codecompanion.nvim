@@ -30,10 +30,28 @@ function SlashCommands.new()
   return setmetatable({}, { __index = SlashCommands })
 end
 
+---Set the provider to use for the Slash Command
+---@param SlashCommand CodeCompanion.SlashCommand
+---@param providers table
+---@return function
+function SlashCommands:set_provider(SlashCommand, providers)
+  if SlashCommand.config.opts and SlashCommand.config.opts.provider then
+    if not providers[SlashCommand.config.opts.provider] then
+      return log:error(
+        "Provider for the symbols slash command could not be found: %s",
+        SlashCommand.config.opts.provider
+      )
+    end
+    return providers[SlashCommand.config.opts.provider](SlashCommand) --[[@type function]]
+  end
+  return providers["default"] --[[@type function]]
+end
+
 ---Execute the selected slash command
 ---@param item table The selected item from the completion menu
+---@param chat CodeCompanion.Chat
 ---@return nil
-function SlashCommands:execute(item)
+function SlashCommands:execute(item, chat)
   local label = item.label:sub(2)
   log:debug("Executing slash command: %s", label)
 
@@ -42,16 +60,13 @@ function SlashCommands:execute(item)
     return log:error("Slash command not found: %s", label)
   end
 
-  --TODO: Enable callbacks to be functions
-  --We can then pass in the Chat and context to the callback
-
   return callback
     .new({
+      Chat = chat,
       config = item.config,
-      Chat = item.Chat,
       context = item.context,
     })
-    :execute(item)
+    :execute(self)
 end
 
 return SlashCommands

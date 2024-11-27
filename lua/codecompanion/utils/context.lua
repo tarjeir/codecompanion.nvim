@@ -32,14 +32,32 @@ end
 ---@param bufnr nil|integer
 ---@return table,number,number,number,number
 function M.get_visual_selection(bufnr)
-  bufnr = bufnr or 0
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local mode = vim.fn.mode()
 
-  api.nvim_feedkeys(ESC_FEEDKEY, "n", true)
-  api.nvim_feedkeys("gv", "x", false)
-  api.nvim_feedkeys(ESC_FEEDKEY, "n", true)
+  -- if we're not in visual mode, we need to re-enter it briefly
+  if not is_visual_mode(mode) then
+    vim.cmd("normal! gv")
+  end
 
-  local end_line, end_col = unpack(api.nvim_buf_get_mark(bufnr, ">"))
-  local start_line, start_col = unpack(api.nvim_buf_get_mark(bufnr, "<"))
+  local start_pos = vim.fn.getpos("v")
+  local end_pos = vim.fn.getpos(".")
+
+  if is_visual_mode(vim.fn.mode()) then
+    vim.cmd("normal! " .. ESC_FEEDKEY)
+  end
+
+  local start_line = start_pos[2]
+  local start_col = start_pos[3]
+  local end_line = end_pos[2]
+  local end_col = end_pos[3]
+
+  -- normalize the range to start < end
+  if start_line > end_line or (start_line == end_line and start_col > end_col) then
+    start_line, end_line = end_line, start_line
+    start_col, end_col = end_col, start_col
+  end
+
   local lines = api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
 
   -- get whole buffer if there is no current/previous visual selection
@@ -88,8 +106,6 @@ function M.get(bufnr, args)
     lines, start_line, start_col, end_line, end_col = M.get_visual_selection(bufnr)
   end
 
-  -- Consider adjustment here for is_normal if there are scenarios where it doesn't align appropriately
-
   return {
     winnr = winnr,
     bufnr = bufnr,
@@ -101,6 +117,7 @@ function M.get(bufnr, args)
     filename = api.nvim_buf_get_name(bufnr),
     cursor_pos = cursor_pos,
     lines = lines,
+    line_count = api.nvim_buf_line_count(bufnr),
     start_line = start_line,
     start_col = start_col,
     end_line = end_line,

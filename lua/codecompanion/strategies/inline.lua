@@ -6,7 +6,7 @@ local keymaps = require("codecompanion.utils.keymaps")
 local log = require("codecompanion.utils.log")
 local msg_utils = require("codecompanion.utils.messages")
 local ui = require("codecompanion.utils.ui")
-local util = require("codecompanion.utils.util")
+local util = require("codecompanion.utils")
 
 local api = vim.api
 
@@ -42,7 +42,7 @@ Please respond to this prompt in the format "<method>", placing the classifictio
 ---@param lines table
 ---@return string
 local function code_block(prompt, filetype, lines)
-  return prompt .. ":\n\n" .. "```" .. filetype .. "\n" .. table.concat(lines, "  ") .. "\n```\n"
+  return prompt .. ":\n\n" .. "```" .. filetype .. "\n" .. table.concat(lines, "\n") .. "\n```\n"
 end
 
 ---Overwrite the given selection in the buffer with an empty string
@@ -495,14 +495,12 @@ function Inline:send_to_chat()
 
   api.nvim_clear_autocmds({ group = self.aug })
 
-  return require("codecompanion.strategies.chat")
-    .new({
-      context = self.context,
-      adapter = self.adapter,
-      messages = prompt,
-      auto_submit = true,
-    })
-    :fold_heading("buffers")
+  return require("codecompanion.strategies.chat").new({
+    context = self.context,
+    adapter = self.adapter,
+    messages = prompt,
+    auto_submit = true,
+  })
 end
 
 ---Write the given text to the buffer

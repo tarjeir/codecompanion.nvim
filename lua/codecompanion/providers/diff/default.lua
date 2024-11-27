@@ -4,7 +4,7 @@
 local config = require("codecompanion.config")
 
 local log = require("codecompanion.utils.log")
-local util = require("codecompanion.utils.util")
+local util = require("codecompanion.utils")
 
 local api = vim.api
 
@@ -54,8 +54,8 @@ function Diff.new(args)
 
   --- Minimize the chat buffer window if there's not enough screen estate
   local last_chat = require("codecompanion").last_chat()
-  if last_chat and last_chat:is_visible() and config.display.diff.close_chat_at > vim.o.columns then
-    last_chat:hide()
+  if last_chat and last_chat.ui:is_visible() and config.display.diff.close_chat_at > vim.o.columns then
+    last_chat.ui:hide()
   end
 
   -- Create the diff buffer

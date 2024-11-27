@@ -1,8 +1,10 @@
+local completion = require("codecompanion.completion")
 local config = require("codecompanion.config")
 
+local async = require("plenary.async")
 local ts = require("codecompanion.utils.treesitter")
 local ui = require("codecompanion.utils.ui")
-local util = require("codecompanion.utils.util")
+local util = require("codecompanion.utils")
 
 local api = vim.api
 
@@ -22,7 +24,7 @@ end
 
 ---Open a floating window with the provided lines
 ---@param lines table
----@param opts table
+---@param opts? table
 ---@return nil
 local function open_float(lines, opts)
   opts = opts or {}
@@ -111,6 +113,9 @@ M.options = {
     table.insert(lines, "### Keymaps")
 
     for _, map in pairs(keymaps) do
+      if type(map.condition) == "function" and not map.condition() then
+        goto continue
+      end
       if not map.hide then
         local modes = {
           n = "Normal",
@@ -134,6 +139,7 @@ M.options = {
 
         table.insert(lines, indent .. pad("_" .. map.description .. "_", max_length, 4) .. " " .. output_str)
       end
+      ::continue::
     end
 
     -- Variables
@@ -159,6 +165,79 @@ M.options = {
   end,
 }
 
+-- Native completion
+M.completion = {
+  callback = function(chat)
+    local function complete_items(callback)
+      async.run(function()
+        local slash_cmds = completion.slash_commands()
+        local tools = completion.tools()
+        local vars = completion.variables()
+
+        local items = {}
+
+        if type(slash_cmds[1]) == "table" then
+          vim.list_extend(items, slash_cmds)
+        end
+        if type(tools[1]) == "table" then
+          vim.list_extend(items, tools)
+        end
+        if type(vars[1]) == "table" then
+          vim.list_extend(items, vars)
+        end
+
+        -- Process each item to match the completion format
+        for _, item in ipairs(items) do
+          if item.label then
+            item.word = item.label
+            item.abbr = item.label:sub(2)
+            item.menu = item.description or item.detail
+            item.icase = 1
+            item.dup = 0
+            item.empty = 0
+            item.user_data = {
+              command = item.label:sub(2),
+              label = item.label,
+              type = item.type,
+              config = item.config,
+              from_prompt_library = item.from_prompt_library,
+            }
+          end
+        end
+
+        vim.schedule(function()
+          callback(items)
+        end)
+      end)
+    end
+
+    local function trigger_complete()
+      local line = vim.api.nvim_get_current_line()
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      local col = cursor[2]
+      if col == 0 or #line == 0 then
+        return
+      end
+
+      local prefix, start = unpack(vim.fn.matchstrpos(line:sub(1, col), [[\%(@\|/\|#\|\$\)\S*]]))
+      if not prefix then
+        return
+      end
+
+      complete_items(function(items)
+        vim.fn.complete(
+          start + 1,
+          vim.tbl_filter(function(item)
+            return vim.startswith(item.word:lower(), prefix:lower())
+          end, items)
+        )
+      end)
+    end
+
+    trigger_complete()
+  end,
+}
+
 M.send = {
   callback = function(chat)
     chat:submit()
@@ -179,7 +258,7 @@ M.close = {
     if vim.tbl_count(chats) == 0 then
       return
     end
-    chats[1].chat:open()
+    chats[1].chat.ui:open()
   end,
 }
 
@@ -218,8 +297,7 @@ M.codeblock = {
 }
 
 ---@param node TSNode to yank text from
----@param register string register to yank to
-local function yank_node(node, register)
+local function yank_node(node)
   local start_row, start_col, end_row, end_col = node:range()
   local cursor_position = vim.fn.getcurpos()
 
@@ -264,8 +342,8 @@ local function move_buffer(chat, direction)
 
   local codecompanion = require("codecompanion")
 
-  codecompanion.buf_get_chat(chat.bufnr):hide()
-  codecompanion.buf_get_chat(next_buf):open()
+  codecompanion.buf_get_chat(chat.bufnr).ui:hide()
+  codecompanion.buf_get_chat(next_buf).ui:open()
 end
 
 M.next_chat = {

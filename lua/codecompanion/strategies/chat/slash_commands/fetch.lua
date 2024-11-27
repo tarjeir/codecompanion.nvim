@@ -3,7 +3,7 @@ local client = require("codecompanion.http")
 local config = require("codecompanion.config")
 
 local log = require("codecompanion.utils.log")
-local util = require("codecompanion.utils.util")
+local util = require("codecompanion.utils")
 
 local fmt = string.format
 
@@ -43,8 +43,8 @@ function SlashCommand:execute()
   end
 
   vim.ui.input({ prompt = "URL" }, function(input)
-    if input == "" then
-      return log:error("URL cannot be empty")
+    if input == "" or not input then
+      return
     end
 
     adapter.env = {

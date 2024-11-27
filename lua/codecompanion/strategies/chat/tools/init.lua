@@ -4,7 +4,7 @@ local config = require("codecompanion.config")
 local TreeHandler = require("codecompanion.utils.xml.xmlhandler.tree")
 local log = require("codecompanion.utils.log")
 local ui = require("codecompanion.utils.ui")
-local util = require("codecompanion.utils.util")
+local util = require("codecompanion.utils")
 local xml2lua = require("codecompanion.utils.xml.xml2lua")
 
 local api = vim.api
@@ -35,31 +35,7 @@ local function parse_xml(message)
   return handler.root.tools
 end
 
----@class CodeCompanion.Tool
----@field name string The name of the tool
----@field cmds table The commands to execute
----@field schema table The schema that the LLM must use in its response to execute a tool
----@field system_prompt fun(schema: table): string The system prompt to the LLM explaining the tool and the schema
----@field opts? table The options for the tool
----@field env? fun(schema: table): table|nil Any environment variables that can be used in the *_cmd fields. Receives the parsed schema from the LLM
----@field handlers table Functions which can be called during the execution of the tool
----@field handlers.setup? fun(self: CodeCompanion.Tools): any Function used to setup the tool. Called before any commands
----@field handlers.approved? fun(self: CodeCompanion.Tools): boolean Function to call if an approval is needed before running a command
----@field handlers.on_exit? fun(self: CodeCompanion.Tools): any Function to call at the end of all of the commands
----@field output? table Functions which can be called after the command finishes
----@field output.rejected? fun(self: CodeCompanion.Tools, cmd: table): any Function to call if the user rejects running a command
----@field output.error? fun(self: CodeCompanion.Tools, cmd: table, error: table|string): any Function to call if the tool is unsuccesful
----@field output.success? fun(self: CodeCompanion.Tools, cmd: table, output: table|string): any Function to call if the tool is successful
----@field request table The request from the LLM to use the Tool
-
 ---@class CodeCompanion.Tools
----@field aug number The augroup for the tool
----@field bufnr number The buffer of the chat buffer
----@field chat CodeCompanion.Chat The chat buffer that initiated the tool
----@field messages table The messages in the chat buffer
----@field tool CodeCompanion.Tool The current tool that's being run
----@field agent_config table The agent strategy from the config
----@field tools_ns integer The namespace for the virtual text that appears in the header
 local Tools = {}
 
 ---@param args table
@@ -234,7 +210,7 @@ function Tools:run()
       if not self.tool.cmds then
         return false
       end
-      if vim.tbl_count(self.tool.cmds) <= index or status == CONSTANTS.STATUS_ERROR then
+      if index >= vim.tbl_count(self.tool.cmds) or status == CONSTANTS.STATUS_ERROR then
         return false
       end
       return true
@@ -243,21 +219,23 @@ function Tools:run()
     local cmd = self.tool.cmds[index]
     log:debug("Running cmd: %s", cmd)
 
-    -- Tools that are setup as Lua functions
-    if type(cmd) == "function" then
-      if requires_approval and not handlers.approved(self.tool.request.action) then
-        output.rejected(self.tool.request.action)
+    ---Execute a function tool
+    local function execute_func(action, ...)
+      if requires_approval and not handlers.approved(action) then
+        output.rejected(action)
         if not should_iter() then
           return close()
         end
       end
 
-      local ok, data = pcall(cmd, self, ...)
+      local ok, data = pcall(function(...)
+        return cmd(self, action, ...)
+      end)
       if not ok then
         status = CONSTANTS.STATUS_ERROR
         table.insert(stderr, data)
         log:error("Error calling function in %s: %s", self.tool.name, data)
-        output.error(self.tool.request.action, data)
+        output.error(action, data)
         return close()
       end
 
@@ -265,10 +243,10 @@ function Tools:run()
         status = CONSTANTS.STATUS_ERROR
         table.insert(stderr, output.msg)
         log:error("Error whilst running %s: %s", self.tool.name, output.msg)
-        output.error(self.tool.request.action, output.msg)
+        output.error(action, output.msg)
       else
         table.insert(stdout, output.msg)
-        output.success(self.tool.request.action, output.msg)
+        output.success(action, output.msg)
       end
 
       if not should_iter() then
@@ -278,11 +256,25 @@ function Tools:run()
       run(index + 1, output)
     end
 
+    -- Tools that are setup as Lua functions
+    if type(cmd) == "function" then
+      local action = self.tool.request.action
+      if type(action) == "table" and type(action[1]) == "table" then
+        for _, a in ipairs(action) do
+          execute_func(a, ...)
+        end
+      else
+        execute_func(action, ...)
+      end
+    end
+
     -- Tools that are setup as shell commands
     if type(cmd) == "table" then
       if requires_approval and not handlers.approved(cmd) then
         output.rejected(cmd)
-        return run(index + 1)
+        if not should_iter() then
+          return close()
+        end
       end
 
       self.chat.current_tool = Job:new({
@@ -315,9 +307,11 @@ function Tools:run()
 
             if not vim.tbl_isempty(stderr) then
               output.error(cmd, stderr)
+              stderr = {}
             end
             if not vim.tbl_isempty(stdout) then
               output.success(cmd, stdout)
+              stdout = {}
             end
 
             if not should_iter() then
@@ -399,7 +393,7 @@ function Tools:parse(chat, message)
   if tools or agents then
     if tools and not vim.tbl_isempty(tools) then
       for _, tool in ipairs(tools) do
-        chat:add_tool(self.agent_config.tools[tool])
+        chat:add_tool(tool, self.agent_config.tools[tool])
       end
     end
 
