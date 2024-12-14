@@ -324,6 +324,22 @@ M.yank_code = {
   end,
 }
 
+M.add_search_domain = {
+  desc = "Add a domain to search",
+  callback = function(chat)
+    vim.ui.input({ prompt = "Enter domain name: " }, function(input1)
+      vim.print("Here is the input" .. input1)
+      local current_adapter = chat.adapter.name
+      if current_adapter == "perplexity" then
+        ---vim.print("Adapter settings is set")
+        local search_domain_filter = chat.adapter.parameters.search_domain_filter
+        table.insert(search_domain_filter, input1)
+        vim.print(vim.inspect(chat.adapter))
+      end
+    end)
+  end,
+}
+
 ---@param chat CodeCompanion.Chat
 ---@param direction number
 local function move_buffer(chat, direction)

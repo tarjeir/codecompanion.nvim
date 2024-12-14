@@ -260,6 +260,14 @@ local defaults = {
           callback = "keymaps.toggle_system_prompt",
           description = "Toggle the system prompt",
         },
+        add_search_domain = {
+          modes = {
+            n = "0",
+          },
+          callback = "keymaps.add_search_domain",
+          description = "Add domain to search in perplexity",
+          index = 16,
+        },
       },
       opts = {
         register = "+", -- The register to use for yanking code

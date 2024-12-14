@@ -34,6 +34,11 @@ return {
     ["Content-Type"] = "application/json",
     Authorization = "Bearer ${api_key}",
   },
+  parameters = {
+    search_domain_filter = {
+      "perplexity.ai",
+    },
+  },
   handlers = {
     ---@param self CodeCompanion.Adapter
     ---@return boolean
@@ -53,7 +58,7 @@ return {
       self.parameters.return_citations = true
       self.parameters.return_images = false
       self.parameters.return_related_questions = false
-      self.parameters.search_domain_filter = { "perplexity.ai" }
+      --self.parameters.search_domain_filter = { "vg.no" }
       self.parameters.search_recency_filter = "month"
       self.parameters.top_k = self.parameters.top_k or 0
       log:debug("Setup parameters: " .. vim.inspect(self.parameters))
