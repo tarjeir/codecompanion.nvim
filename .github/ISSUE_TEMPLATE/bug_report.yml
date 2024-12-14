@@ -43,9 +43,33 @@ body:
               dependencies = {
                 { "nvim-treesitter/nvim-treesitter", build = ":TSUpdate" },
                 { "nvim-lua/plenary.nvim" },
-                { "hrsh7th/nvim-cmp" },
-                { "stevearc/dressing.nvim", opts = {} },
-                { "nvim-telescope/telescope.nvim" },
+                -- Test with blink.cmp
+                {
+                  "saghen/blink.cmp",
+                  lazy = false,
+                  version = "*",
+                  opts = {
+                    keymap = {
+                      preset = "enter",
+                      ["<S-Tab>"] = { "select_prev", "fallback" },
+                      ["<Tab>"] = { "select_next", "fallback" },
+                    },
+                    sources = {
+                      completion = {
+                        enabled_providers = { "lsp", "path", "buffer", "codecompanion" },
+                      },
+                      providers = {
+                        codecompanion = {
+                          name = "CodeCompanion",
+                          module = "codecompanion.providers.completion.blink",
+                          enabled = true,
+                        },
+                      },
+                    },
+                  },
+                },
+                -- Test with nvim-cmp
+                -- { "hrsh7th/nvim-cmp" },
               },
               opts = {
                 --Refer to: https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua
@@ -72,20 +96,20 @@ body:
             })
           end
 
-          -- Setup completion
-          local cmp_status, cmp = pcall(require, "cmp")
-          if cmp_status then
-            cmp.setup({
-              mapping = cmp.mapping.preset.insert({
-                ["<C-b>"] = cmp.mapping.scroll_docs(-4),
-                ["<C-f>"] = cmp.mapping.scroll_docs(4),
-                ["<C-Space>"] = cmp.mapping.complete(),
-                ["<C-e>"] = cmp.mapping.abort(),
-                ["<CR>"] = cmp.mapping.confirm({ select = true }),
-                -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
-              }),
-            })
-          end
+          -- Setup nvim-cmp
+          -- local cmp_status, cmp = pcall(require, "cmp")
+          -- if cmp_status then
+          --   cmp.setup({
+          --     mapping = cmp.mapping.preset.insert({
+          --       ["<C-b>"] = cmp.mapping.scroll_docs(-4),
+          --       ["<C-f>"] = cmp.mapping.scroll_docs(4),
+          --       ["<C-Space>"] = cmp.mapping.complete(),
+          --       ["<C-e>"] = cmp.mapping.abort(),
+          --       ["<CR>"] = cmp.mapping.confirm({ select = true }),
+          --       -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
+          --     }),
+          --   })
+          -- end
           ```
 
           - Once you've updated for your config, run Neovim with the minimal config:

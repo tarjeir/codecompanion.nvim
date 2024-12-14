@@ -15,6 +15,7 @@ local api = vim.api
 local CONSTANTS = {
   AUTOCMD_GROUP = "codecompanion.chat",
 
+  STATUS_CANCELLING = "cancelling",
   STATUS_ERROR = "error",
   STATUS_SUCCESS = "success",
 
@@ -301,23 +302,20 @@ function Chat:set_autocmds()
     end,
   })
 
-  local has_cmp, _ = pcall(require, "cmp")
-  if not has_cmp then
-    api.nvim_create_autocmd("CompleteDone", {
-      group = self.aug,
-      buffer = bufnr,
-      callback = function()
-        local item = vim.v.completed_item
-        if item.user_data and item.user_data.type == "slash_command" then
-          -- Clear the word from the buffer
-          local row, col = unpack(api.nvim_win_get_cursor(0))
-          api.nvim_buf_set_text(bufnr, row - 1, col - #item.word, row - 1, col, { "" })
+  api.nvim_create_autocmd("CompleteDone", {
+    group = self.aug,
+    buffer = bufnr,
+    callback = function()
+      local item = vim.v.completed_item
+      if item.user_data and item.user_data.type == "slash_command" then
+        -- Clear the word from the buffer
+        local row, col = unpack(api.nvim_win_get_cursor(0))
+        api.nvim_buf_set_text(bufnr, row - 1, col - #item.word, row - 1, col, { "" })
 
-          completion.slash_commands_execute(item.user_data, self)
-        end
-      end,
-    })
-  end
+        completion.slash_commands_execute(item.user_data, self)
+      end
+    end,
+  })
 
   if config.display.chat.show_settings then
     api.nvim_create_autocmd("CursorMoved", {
@@ -459,6 +457,10 @@ end
 ---Set the system prompt in the chat buffer
 ---@return CodeCompanion.Chat
 function Chat:set_system_prompt()
+  if self.opts and self.opts.ignore_system_prompt then
+    return self
+  end
+
   local prompt = config.opts.system_prompt
   if prompt ~= "" then
     if type(prompt) == "function" then
@@ -632,8 +634,7 @@ function Chat:submit(opts)
 
   self:apply_tools_and_variables(message)
 
-  -- Check if the user has manually overriden the adapter. This is useful if the
-  -- user loses their internet connection and wants to switch to a local LLM
+  -- Check if the user has manually overriden the adapter
   if vim.g.codecompanion_adapter and self.adapter.name ~= vim.g.codecompanion_adapter then
     self.adapter = adapters.resolve(config.adapters[vim.g.codecompanion_adapter])
   end
@@ -686,6 +687,11 @@ end
 ---@return nil
 function Chat:done()
   self.current_request = nil
+  if self.status == CONSTANTS.STATUS_CANCELLING then
+    self.status = ""
+    return self:reset()
+  end
+
   self:add_message({ role = config.constants.LLM_ROLE, content = buf_parse_message(self.bufnr).content })
 
   self:add_buf_message({ role = config.constants.USER_ROLE, content = "" })

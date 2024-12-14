@@ -1,5 +1,100 @@
 # Changelog
 
+## [10.6.0](https://github.com/olimorris/codecompanion.nvim/compare/v10.5.3...v10.6.0) (2024-12-13)
+
+
+### Features
+
+* **adapters:** add Hugging Face adapter ([#527](https://github.com/olimorris/codecompanion.nvim/issues/527)) ([48747c4](https://github.com/olimorris/codecompanion.nvim/commit/48747c4e36eb0a3f44d6d9e55f8089b9e27cacfc))
+
+## [10.5.3](https://github.com/olimorris/codecompanion.nvim/compare/v10.5.2...v10.5.3) (2024-12-13)
+
+
+### Bug Fixes
+
+* **inline:** [#531](https://github.com/olimorris/codecompanion.nvim/issues/531) inline edits in c++ buffers ([73e8ea5](https://github.com/olimorris/codecompanion.nvim/commit/73e8ea561e81cce3b9c75d825b8294e0a82fc4e9))
+
+## [10.5.2](https://github.com/olimorris/codecompanion.nvim/compare/v10.5.1...v10.5.2) (2024-12-12)
+
+
+### Bug Fixes
+
+* **adapters:** [#528](https://github.com/olimorris/codecompanion.nvim/issues/528) Gemini adapter fails if system prompt is removed ([7ca4364](https://github.com/olimorris/codecompanion.nvim/commit/7ca43642376d7768a3f2ecea2cd99ae9a792451a))
+
+## [10.5.1](https://github.com/olimorris/codecompanion.nvim/compare/v10.5.0...v10.5.1) (2024-12-10)
+
+
+### Bug Fixes
+
+* **slash_commands:** prompt library now works with blink.cmp ([1027f47](https://github.com/olimorris/codecompanion.nvim/commit/1027f47c6c583a6b6592ae60a8008d780517792a))
+
+## [10.5.0](https://github.com/olimorris/codecompanion.nvim/compare/v10.4.6...v10.5.0) (2024-12-09)
+
+
+### Features
+
+* **chat:** :sparkles: `blink.cmp` support ([cb2c93f](https://github.com/olimorris/codecompanion.nvim/commit/cb2c93f8a6b0ab0522a814f244b8011a7275ea3b))
+* **slash_commands:** `help` cmd now prompts user to trim if exceeding max_lines ([33c326a](https://github.com/olimorris/codecompanion.nvim/commit/33c326a0d31473ecf3112d783dbcc22afccfb801))
+
+## [10.4.6](https://github.com/olimorris/codecompanion.nvim/compare/v10.4.5...v10.4.6) (2024-12-09)
+
+
+### Bug Fixes
+
+* **cmd:** strategy now respects `vim.g.codecompanion_adapter` ([b629005](https://github.com/olimorris/codecompanion.nvim/commit/b629005f0467471b4439192492cea2d49f22d52f))
+
+## [10.4.5](https://github.com/olimorris/codecompanion.nvim/compare/v10.4.4...v10.4.5) (2024-12-09)
+
+
+### Bug Fixes
+
+* **chat:** prevent double adding of references ([953b20d](https://github.com/olimorris/codecompanion.nvim/commit/953b20dabf63e4e5c7b30b9d32cd1136291aceb1))
+* **inline:** [#516](https://github.com/olimorris/codecompanion.nvim/issues/516) switching adapters via `vim.g.codecompanion_adapter` ([0d91c08](https://github.com/olimorris/codecompanion.nvim/commit/0d91c086b30da050aa0a95dd9e69d16d9d88c587))
+* **slash_commands:** [#515](https://github.com/olimorris/codecompanion.nvim/issues/515) help tags line limit can be customised ([e1b9876](https://github.com/olimorris/codecompanion.nvim/commit/e1b9876641e4ea0fa80f78339c260b16b729a21f))
+
+## [10.4.4](https://github.com/olimorris/codecompanion.nvim/compare/v10.4.3...v10.4.4) (2024-12-06)
+
+
+### Bug Fixes
+
+* [#501](https://github.com/olimorris/codecompanion.nvim/issues/501) `blink.compat` causing issues with completion menu ([c5065d0](https://github.com/olimorris/codecompanion.nvim/commit/c5065d02916d8c1bf5dd3baf9f0dd5e1f017fd57))
+
+## [10.4.3](https://github.com/olimorris/codecompanion.nvim/compare/v10.4.2...v10.4.3) (2024-12-05)
+
+
+### Bug Fixes
+
+* **tools:** remove ANSI sequences from all output ([2836849](https://github.com/olimorris/codecompanion.nvim/commit/2836849c6e1533fc54d06e88d52354374efc728d))
+
+## [10.4.2](https://github.com/olimorris/codecompanion.nvim/compare/v10.4.1...v10.4.2) (2024-12-05)
+
+
+### Bug Fixes
+
+* **tools:** [#503](https://github.com/olimorris/codecompanion.nvim/issues/503) shell redirection ([7023e58](https://github.com/olimorris/codecompanion.nvim/commit/7023e58a056cb834cd3620fec6c42de37469109b))
+
+## [10.4.1](https://github.com/olimorris/codecompanion.nvim/compare/v10.4.0...v10.4.1) (2024-12-05)
+
+
+### Bug Fixes
+
+* **tools:** explictly add cwd to `plenary.job` call ([e78006d](https://github.com/olimorris/codecompanion.nvim/commit/e78006d5a09f0bc9ec78aab4f2a53a4d6bf40149))
+* **tools:** strip ansi from cmd output ([679a9a5](https://github.com/olimorris/codecompanion.nvim/commit/679a9a513f61a5d4e622c7506599cad55f35e502))
+
+## [10.4.0](https://github.com/olimorris/codecompanion.nvim/compare/v10.3.1...v10.4.0) (2024-12-02)
+
+
+### Features
+
+* **prompts:** system prompt is optional for custom prompts ([90820fc](https://github.com/olimorris/codecompanion.nvim/commit/90820fcdb5e6a570dc4f92731fade4d5f716ea02))
+
+## [10.3.1](https://github.com/olimorris/codecompanion.nvim/compare/v10.3.0...v10.3.1) (2024-11-28)
+
+
+### Bug Fixes
+
+* **utils:** [#488](https://github.com/olimorris/codecompanion.nvim/issues/488) fix edge cases in visual selection ([84a8e89](https://github.com/olimorris/codecompanion.nvim/commit/84a8e8962e9ae20b8357d813dee1ea44a8079605))
+
 ## [10.3.0](https://github.com/olimorris/codecompanion.nvim/compare/v10.2.4...v10.3.0) (2024-11-27)
 
 

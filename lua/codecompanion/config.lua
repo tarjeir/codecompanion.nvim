@@ -91,6 +91,7 @@ local defaults = {
           description = "Insert content from help tags",
           opts = {
             contains_code = false,
+            max_lines = 128, -- Maximum amount of lines to of the help file to send (NOTE: each vimdoc line is typically 10 tokens)
             provider = "telescope", -- telescope|mini_pick|fzf_lua
           },
         },
@@ -132,10 +133,6 @@ local defaults = {
           },
           index = 1,
           callback = "keymaps.completion",
-          condition = function()
-            local has_cmp, _ = pcall(require, "cmp")
-            return not has_cmp
-          end,
           description = "Completion Menu",
         },
         send = {
@@ -839,7 +836,7 @@ This is the code, for context:
       },
       intro_message = "Welcome to CodeCompanion ✨! Press ? for options",
 
-      show_header_separator = true, -- Show header separators in the chat buffer? Set this to false if you're using an exteral markdown formatting plugin
+      show_header_separator = false, -- Show header separators in the chat buffer? Set this to false if you're using an exteral markdown formatting plugin
       separator = "─", -- The separator between the different messages in the chat buffer
 
       show_references = true, -- Show references (from slash commands and variables) in the chat buffer?

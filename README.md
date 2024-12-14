@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-Currently supports: Anthropic, Copilot, Gemini, Ollama, OpenAI, Azure OpenAI and xAI adapters<br><br>
+Currently supports: Anthropic, Copilot, Gemini, Ollama, OpenAI, Azure OpenAI, HuggingFace and xAI adapters<br><br>
 New features are always announced <a href="https://github.com/olimorris/codecompanion.nvim/discussions/categories/announcements">here</a>
 </p>
 
@@ -20,7 +20,7 @@ New features are always announced <a href="https://github.com/olimorris/codecomp
 Thank you to the following people:
 
 <p align="center">
-<!-- coffee --><a href="https://github.com/bassamsdata"><img src="https://github.com/bassamsdata.png" width="60px" alt="Bassam Data" /></a><a href="https://github.com/ivo-toby"><img src="https://github.com/ivo-toby.png" width="60px" alt="Ivo Toby" /></a><a href="https://github.com/KTSCode"><img src="https://github.com/KTSCode.png" width="60px" alt="KTS Code" /></a><a href="https://x.com/luxus"><img src="https://pbs.twimg.com/profile_images/744754093495844864/GwnEJygG_400x400.jpg" width="60px" alt="Luxus" /></a><!-- coffee --><!-- sponsors --><a href="https://github.com/zhming0"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;1054703?u&#x3D;b173a2c1afc61fa25d9343704659630406e3dea7&amp;v&#x3D;4" width="60px" alt="Zhiming Guo" /></a><a href="https://github.com/carlosflorencio"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;1500881?u&#x3D;6b4f80028aea4589bc3632739a40191bbcf58d22&amp;v&#x3D;4" width="60px" alt="Carlos Florêncio" /></a><a href="https://github.com/GitMurf"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;64155612?u&#x3D;b4aa60589d92918092f4ed0843d31ce8c1768f47&amp;v&#x3D;4" width="60px" alt="" /></a><a href="https://github.com/adam-e-trepanier"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;91675?u&#x3D;524ffd6d070b7b6cacd796d08d830cb788e6efc6&amp;v&#x3D;4" width="60px" alt="Adam Trepanier" /></a><!-- sponsors -->
+<!-- coffee --><a href="https://github.com/bassamsdata"><img src="https://github.com/bassamsdata.png" width="60px" alt="Bassam Data" /></a><a href="https://github.com/ivo-toby"><img src="https://github.com/ivo-toby.png" width="60px" alt="Ivo Toby" /></a><a href="https://github.com/KTSCode"><img src="https://github.com/KTSCode.png" width="60px" alt="KTS Code" /></a><a href="https://x.com/luxus"><img src="https://pbs.twimg.com/profile_images/744754093495844864/GwnEJygG_400x400.jpg" width="60px" alt="Luxus" /></a><!-- coffee --><!-- sponsors --><a href="https://github.com/zhming0"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;1054703?u&#x3D;b173a2c1afc61fa25d9343704659630406e3dea7&amp;v&#x3D;4" width="60px" alt="Zhiming Guo" /></a><a href="https://github.com/koskeller"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;30801340?u&#x3D;b89bc8fe35246370a30bbe59719c3b32459f4129&amp;v&#x3D;4" width="60px" alt="Konstantin Keller" /></a><a href="https://github.com/carlosflorencio"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;1500881?u&#x3D;6b4f80028aea4589bc3632739a40191bbcf58d22&amp;v&#x3D;4" width="60px" alt="Carlos Florêncio" /></a><a href="https://github.com/GitMurf"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;64155612?u&#x3D;b4aa60589d92918092f4ed0843d31ce8c1768f47&amp;v&#x3D;4" width="60px" alt="" /></a><a href="https://github.com/adam-e-trepanier"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;91675?u&#x3D;524ffd6d070b7b6cacd796d08d830cb788e6efc6&amp;v&#x3D;4" width="60px" alt="Adam Trepanier" /></a><!-- sponsors -->
 </p>
 
 <!-- panvimdoc-ignore-end -->
@@ -28,7 +28,7 @@ Thank you to the following people:
 ## :sparkles: Features
 
 - :speech_balloon: [Copilot Chat](https://github.com/features/copilot) meets [Zed AI](https://zed.dev/blog/zed-ai), in Neovim
-- :electric_plug: Support for Anthropic, Copilot, Gemini, Ollama, OpenAI, Azure OpenAI and xAI LLMs (or bring your own!)
+- :electric_plug: Support for Anthropic, Copilot, Gemini, Ollama, OpenAI, Azure OpenAI, HuggingFace and xAI LLMs (or bring your own!)
 - :rocket: Inline transformations, code creation and refactoring
 - :robot: Variables, Slash Commands, Agents/Tools and Workflows to improve LLM output
 - :sparkles: Built in prompt library for common tasks like advice on LSP errors and code explanations
@@ -55,6 +55,9 @@ Thank you to the following people:
 
 ## :package: Installation
 
+> [!IMPORTANT]
+> The plugin requires the markdown Tree-sitter parser to be installed with `:TSInstall markdown`
+
 Install the plugin with your preferred package manager:
 
 **[Lazy.nvim](https://github.com/folke/lazy.nvim)**
@@ -65,8 +68,6 @@ Install the plugin with your preferred package manager:
   dependencies = {
     "nvim-lua/plenary.nvim",
     "nvim-treesitter/nvim-treesitter",
-    -- The following are optional:
-    { "MeanderingProgrammer/render-markdown.nvim", ft = { "markdown", "codecompanion" } },
   },
   config = true
 }
@@ -83,8 +84,6 @@ use({
   requires = {
     "nvim-lua/plenary.nvim",
     "nvim-treesitter/nvim-treesitter",
-    -- The following are optional:
-    { "MeanderingProgrammer/render-markdown.nvim", ft = { "markdown", "codecompanion" } },
   }
 })
 ```
@@ -96,9 +95,6 @@ call plug#begin()
 
 Plug 'nvim-lua/plenary.nvim'
 Plug 'nvim-treesitter/nvim-treesitter'
-" -- The following are optional
-Plug 'MeanderingProgrammer/render-markdown.nvim'
-" --
 Plug 'olimorris/codecompanion.nvim'
 
 call plug#end()
@@ -108,15 +104,43 @@ lua << EOF
 EOF
 ```
 
-> [!IMPORTANT]
-> The plugin requires the markdown Tree-sitter parser to be installed with `:TSInstall markdown`
+**Completion**
+
+When conversing with the LLM, you can leverage variables, slash commands and tools in the chat buffer. Out of the box, the plugin will display these to you via a native Neovim completion menu (which you'll need to trigger with `<C-_>`). However, it also has support for [nvim-cmp](https://github.com/hrsh7th/nvim-cmp) and [blink.cmp](https://github.com/Saghen/blink.cmp). The former, requires no setup however to enable completions for `blink.cmp`, please ensure you've enabled it in your config:
+
+```lua
+sources = {
+  completion = {
+    enabled_providers = { "some", "other", "providers", "codecompanion" },
+  },
+  providers = {
+    codecompanion = {
+      name = "CodeCompanion",
+      module = "codecompanion.providers.completion.blink",
+      enabled = true,
+    },
+  },
+},
+```
+
+**Slash Commands**
 
 To better utilise Slash Commands, [Telescope.nvim](https://github.com/nvim-telescope/telescope.nvim), [mini.pick](https://github.com/echasnovski/mini.pick) or [fzf lua](https://github.com/ibhagwan/fzf-lua) can also be installed. Please refer to the [Chat Buffer](#speech_balloon-the-chat-buffer) section for more information.
+
+**Pinned plugins**
 
 As per [#377](https://github.com/olimorris/codecompanion.nvim/issues/377), if you pin your plugins to the latest releases, consider setting plenary.nvim to:
 
 ```lua
 { "nvim-lua/plenary.nvim", branch = "master" },
+```
+
+**Prettify with `render-markdown.nvim`**
+
+Add the following to your dependencies:
+
+```lua
+{ "MeanderingProgrammer/render-markdown.nvim", ft = { "markdown", "codecompanion" } },
 ```
 
 ## :rocket: Quickstart
@@ -264,6 +288,7 @@ The plugin uses adapters to connect to LLMs. Out of the box, the plugin supports
 - OpenAI (`openai`) - Requires an API key
 - Azure OpenAI (`azure_openai`) - Requires an Azure OpenAI service with a model deployment
 - xAI (`xai`) - Requires an API key
+- HuggingFace (`huggingface`) - Requires a Serveless Inference API key from HuggingFace.co
 
 The plugin utilises objects called Strategies. These are the different ways that a user can interact with the plugin. The _chat_ strategy harnesses a buffer to allow direct conversation with the LLM. The _inline_ strategy allows for output from the LLM to be written directly into a pre-existing Neovim buffer. The _agent_ and _workflow_ strategies are wrappers for the _chat_ strategy, allowing for [tool use](#robot-agents--tools) and [agentic workflows](#world_map-agentic-workflows).
 
@@ -357,20 +382,6 @@ require('codecompanion').setup({
           description = "Hide the chat buffer",
         },
       }
-    }
-  }
-})
-```
-
-**Using with render-markdown.nvim**
-
-If you use the fantastic [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) plugin, then please you can turn off the `render_headers` display option for a cleaner chat buffer:
-
-```lua
-require("codecompanion").setup({
-  display = {
-    chat = {
-      render_headers = false,
     }
   }
 })
@@ -614,6 +625,21 @@ The chat buffer is where you converse with an LLM from within Neovim. The chat b
 
 The look and feel of the chat buffer can be customised as per the `display.chat` table in the [config](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua). You can also add additional _Variables_ and _Slash Commands_ which can then be referenced in the chat buffer.
 
+**Slash Commands**
+
+As outlined in the [Quickstart](#rocket-quickstart) section, Slash Commands allow you to easily share additional context with your LLM from the chat buffer. Some of the commands also allow for multiple providers:
+
+- `/buffer` - Has `default`, `telescope` and `fzf_lua` providers
+- `/files` - Has `default`, `telescope`, `mini_pick` and `fzf_lua` providers
+- `/help` - Has `telescope`, `mini_pick` and `fzf_lua` providers
+- `/symbols` - Has `default`, `telescope`, `mini_pick` and `fzf_lua` providers
+
+Please refer to [the config](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua) to see how to change the default provider.
+
+**References**
+
+When Slash Commands or Variables are used, a block quote is added to the chat buffer referencing what's been shared with the LLM. When a conversation becomes long, this allows you to keep track of what's been shared. You can modify these block quotes to remove references from being shared with the LLM which will alter the history of the conversation. This can be useful to minimize token consumption.
+
 **Keymaps**
 
 When in the chat buffer, press `?` to bring up a menu that lists the available keymaps, variables, slash commands and tools. Currently, the keymaps available to you in normal mode are:
@@ -641,17 +667,6 @@ and in insert mode:
 **Settings**
 
 You can display your selected adapter's schema at the top of the buffer, if `display.chat.show_settings` is set to `true`. This allows you to vary the response from the LLM.
-
-**Slash Commands**
-
-As outlined in the [Quickstart](#rocket-quickstart) section, Slash Commands allow you to easily share additional context with your LLM from the chat buffer. Some of the commands also allow for multiple providers:
-
-- `/buffer` - Has `default`, `telescope` and `fzf_lua` providers
-- `/files` - Has `default`, `telescope`, `mini_pick` and `fzf_lua` providers
-- `/help` - Has `telescope`, `mini_pick` and `fzf_lua` providers
-- `/symbols` - Has `default`, `telescope`, `mini_pick` and `fzf_lua` providers
-
-Please refer to [the config](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua) to see how to change the default provider.
 
 ### :pencil2: Inline Assistant
 
