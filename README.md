@@ -20,7 +20,7 @@ New features are always announced <a href="https://github.com/olimorris/codecomp
 Thank you to the following people:
 
 <p align="center">
-<!-- coffee --><a href="https://github.com/bassamsdata"><img src="https://github.com/bassamsdata.png" width="60px" alt="Bassam Data" /></a><a href="https://github.com/ivo-toby"><img src="https://github.com/ivo-toby.png" width="60px" alt="Ivo Toby" /></a><a href="https://github.com/KTSCode"><img src="https://github.com/KTSCode.png" width="60px" alt="KTS Code" /></a><a href="https://x.com/luxus"><img src="https://pbs.twimg.com/profile_images/744754093495844864/GwnEJygG_400x400.jpg" width="60px" alt="Luxus" /></a><!-- coffee --><!-- sponsors --><a href="https://github.com/zhming0"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;1054703?u&#x3D;b173a2c1afc61fa25d9343704659630406e3dea7&amp;v&#x3D;4" width="60px" alt="Zhiming Guo" /></a><a href="https://github.com/koskeller"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;30801340?u&#x3D;b89bc8fe35246370a30bbe59719c3b32459f4129&amp;v&#x3D;4" width="60px" alt="Konstantin Keller" /></a><a href="https://github.com/carlosflorencio"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;1500881?u&#x3D;6b4f80028aea4589bc3632739a40191bbcf58d22&amp;v&#x3D;4" width="60px" alt="Carlos Florêncio" /></a><a href="https://github.com/GitMurf"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;64155612?u&#x3D;b4aa60589d92918092f4ed0843d31ce8c1768f47&amp;v&#x3D;4" width="60px" alt="" /></a><a href="https://github.com/adam-e-trepanier"><img src="https:&#x2F;&#x2F;avatars.githubusercontent.com&#x2F;u&#x2F;91675?u&#x3D;524ffd6d070b7b6cacd796d08d830cb788e6efc6&amp;v&#x3D;4" width="60px" alt="Adam Trepanier" /></a><!-- sponsors -->
+<!-- coffee --><a href="https://github.com/bassamsdata"><img src="https://github.com/bassamsdata.png" width="60px" alt="Bassam Data" /></a><a href="https://github.com/ivo-toby"><img src="https://github.com/ivo-toby.png" width="60px" alt="Ivo Toby" /></a><a href="https://github.com/KTSCode"><img src="https://github.com/KTSCode.png" width="60px" alt="KTS Code" /></a><a href="https://x.com/luxus"><img src="https://pbs.twimg.com/profile_images/744754093495844864/GwnEJygG_400x400.jpg" width="60px" alt="Luxus" /></a><!-- coffee --><!-- sponsors --><a href="https://github.com/zhming0"><img src="https:&#x2F;&#x2F;github.com&#x2F;zhming0.png" width="60px" alt="User avatar: Zhiming Guo" /></a><a href="https://github.com/koskeller"><img src="https:&#x2F;&#x2F;github.com&#x2F;koskeller.png" width="60px" alt="User avatar: Konstantin Keller" /></a><a href="https://github.com/carlosflorencio"><img src="https:&#x2F;&#x2F;github.com&#x2F;carlosflorencio.png" width="60px" alt="User avatar: Carlos Florêncio" /></a><a href="https://github.com/adam-e-trepanier"><img src="https:&#x2F;&#x2F;github.com&#x2F;adam-e-trepanier.png" width="60px" alt="User avatar: Adam Trepanier" /></a><!-- sponsors -->
 </p>
 
 <!-- panvimdoc-ignore-end -->
@@ -322,8 +322,8 @@ require("codecompanion").setup({
   opts = {
     ---@param adapter CodeCompanion.Adapter
     ---@return string
-    system_prompt = function(opts)
-      if opts.adapter.schema.model.default == "llama3.1:latest" then
+    system_prompt = function(adapter)
+      if adapter.schema.model.default == "llama3.1:latest" then
         return "My custom system prompt"
       end
       return "My default system prompt"
@@ -719,6 +719,7 @@ The plugin sets the following highlight groups during setup:
 
 The plugin fires many events during its lifecycle:
 
+- `CodeCompanionChatOpened` - Fired after a chat has been opened
 - `CodeCompanionChatClosed` - Fired after a chat has been closed
 - `CodeCompanionChatAdapter` - Fired after the adapter has been set in the chat
 - `CodeCompanionChatModel` - Fired after the model has been set in the chat

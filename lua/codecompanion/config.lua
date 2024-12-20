@@ -639,23 +639,26 @@ Use Markdown formatting and include the programming language name at the start o
       },
       prompts = {
         {
-          role = constants.SYSTEM_ROLE,
-          content = function(context)
-            return "I want you to act as a senior "
-              .. context.filetype
-              .. " developer. I will ask you specific questions and I want you to return raw code only (no codeblocks and no explanations). If you can't respond with code, respond with nothing."
-          end,
-          opts = {
-            visible = false,
-            tag = "system_tag",
-          },
-        },
-        {
           role = constants.USER_ROLE,
           content = function(context)
             local buf_utils = require("codecompanion.utils.buffers")
 
-            return "```" .. context.filetype .. "\n" .. buf_utils.get_content(context.bufnr) .. "\n```\n\n"
+            return fmt(
+              [[Here is the content of a buffer, for context:
+
+```%s
+%s
+```
+
+NOTE: The cursor is currently on line %d, which is `%s`.
+
+
+]],
+              context.filetype,
+              buf_utils.get_content(context.bufnr),
+              context.cursor_pos[1],
+              vim.trim(buf_utils.get_line(context.bufnr, context.cursor_pos[1]))
+            )
           end,
           opts = {
             contains_code = true,
@@ -829,6 +832,7 @@ This is the code, for context:
           foldcolumn = "0",
           linebreak = true,
           list = false,
+          numberwidth = 1,
           signcolumn = "no",
           spell = false,
           wrap = true,
