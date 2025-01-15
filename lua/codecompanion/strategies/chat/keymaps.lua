@@ -327,6 +327,8 @@ M.add_search_domain = {
         vim.print(vim.inspect(chat.adapter))
       end
     end)
+  end,
+}
 
 M.pin_reference = {
   desc = "Pin Reference",
