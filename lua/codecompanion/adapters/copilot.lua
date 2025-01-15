@@ -16,16 +16,17 @@ local function find_config_path()
     return os.getenv("CODECOMPANION_TOKEN_PATH")
   end
 
-  local path = vim.fn.expand("$XDG_CONFIG_HOME")
+  local path = vim.fs.normalize("$XDG_CONFIG_HOME")
+
   if path and vim.fn.isdirectory(path) > 0 then
     return path
   elseif vim.fn.has("win32") > 0 then
-    path = vim.fn.expand("~/AppData/Local")
+    path = vim.fs.normalize("~/AppData/Local")
     if vim.fn.isdirectory(path) > 0 then
       return path
     end
   else
-    path = vim.fn.expand("~/.config")
+    path = vim.fs.normalize("~/.config")
     if vim.fn.isdirectory(path) > 0 then
       return path
     end
@@ -98,6 +99,17 @@ local function authorize_token()
   return _github_token
 end
 
+---Prepare data to be parsed as JSON
+---@param data string | { body: string }
+---@return string
+local prepare_data_for_json = function(data)
+  if type(data) == "table" then
+    return data.body
+  end
+  local find_json_start = string.find(data, "{") or 1
+  return string.sub(data, find_json_start)
+end
+
 ---@class Copilot.Adapter: CodeCompanion.Adapter
 return {
   name = "copilot",
@@ -110,7 +122,7 @@ return {
   },
   features = {
     text = true,
-    tokens = false,
+    tokens = true,
     vision = false,
   },
   url = "https://api.githubcopilot.com/chat/completions",
@@ -119,10 +131,6 @@ return {
     api_key = function()
       return authorize_token().token
     end,
-  },
-  raw = {
-    "--no-buffer",
-    "--silent",
   },
   headers = {
     Authorization = "Bearer ${api_key}",
@@ -168,6 +176,23 @@ return {
     form_messages = function(self, messages)
       return openai.handlers.form_messages(self, messages)
     end,
+    tokens = function(self, data)
+      if data and data ~= "" then
+        local data_mod = prepare_data_for_json(data)
+        local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
+
+        if ok then
+          if json.usage then
+            local total_tokens = json.usage.total_tokens or 0
+            local completion_tokens = json.usage.completion_tokens or 0
+            local prompt_tokens = json.usage.prompt_tokens or 0
+            local tokens = total_tokens > 0 and total_tokens or completion_tokens + prompt_tokens
+            log:trace("Tokens: %s", tokens)
+            return tokens
+          end
+        end
+      end
+    end,
     chat_output = function(self, data)
       return openai.handlers.chat_output(self, data)
     end,
@@ -189,8 +214,8 @@ return {
       choices = {
         "gpt-4o-2024-08-06",
         "claude-3.5-sonnet",
-        ["o1-preview-2024-09-12"] = { opts = { stream = false } },
-        ["o1-mini-2024-09-12"] = { opts = { stream = false } },
+        "o1-2024-12-17",
+        "o1-mini-2024-09-12",
       },
     },
     temperature = {

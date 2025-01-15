@@ -25,6 +25,8 @@ local CONSTANTS = {
 ---@param message string
 ---@return table
 local function parse_xml(message)
+  log:trace("Trying to parse: %s", message)
+
   local handler = TreeHandler:new()
   local parser = xml2lua.parser(handler)
   -- parser.options.stripWS = nil
@@ -44,9 +46,10 @@ function Tools.new(args)
     aug = api.nvim_create_augroup(CONSTANTS.AUTOCMD_GROUP .. ":" .. args.bufnr, { clear = true }),
     bufnr = args.bufnr,
     chat = {},
+    extracted = {},
     messages = args.messages,
     tool = {},
-    agent_config = config.strategies.agent,
+    agent_config = config.strategies.chat.agents,
     tools_ns = api.nvim_create_namespace(CONSTANTS.NS_TOOLS),
   }, { __index = Tools })
 
@@ -79,8 +82,8 @@ function Tools:set_autocmds()
 
         -- Handle any errors
         if request.data.status == CONSTANTS.STATUS_ERROR then
-          local error = request.data.sterr
-          log:error("Tool %s finished with error: %s", self.tool.name, error)
+          local error = request.data.stderr
+          log:error("Tool %s finished with error(s): %s", self.tool.name, error)
 
           if self.tool.output and self.tool.output.errors then
             self.tool.output.errors(self, error)
@@ -102,6 +105,51 @@ function Tools:set_autocmds()
       end
     end,
   })
+end
+
+---Parse a chat buffer for tools
+---@param chat CodeCompanion.Chat
+---@param start_range number
+---@param end_range number
+---@return nil
+function Tools:parse_buffer(chat, start_range, end_range)
+  local query = vim.treesitter.query.get("markdown", "tools")
+  local tree = chat.parser:parse({ start_range - 1, end_range - 1 })[1]
+
+  local llm = {}
+  for id, node in query:iter_captures(tree:root(), chat.bufnr, start_range - 1, end_range - 1) do
+    if query.captures[id] == "content" then
+      table.insert(llm, vim.treesitter.get_node_text(node, chat.bufnr))
+    end
+  end
+
+  if vim.tbl_isempty(llm) then
+    return
+  end
+
+  -- NOTE: Only work with the last response from the LLM
+  local response = llm[#llm]
+
+  local parser = vim.treesitter.get_string_parser(response, "markdown")
+  tree = parser:parse()[1]
+
+  local tools = {}
+  for id, node in query:iter_captures(tree:root(), response, 0, -1) do -- NOTE: Keep this scoped to 0,-1
+    if query.captures[id] == "tool" then
+      local tool = vim.treesitter.get_node_text(node, response)
+      tool = tool:gsub("^`+", ""):gsub("```$", "")
+      table.insert(tools, vim.trim(tool))
+    end
+  end
+
+  log:debug("Tool detected: %s", tools)
+
+  if not vim.tbl_isempty(tools) then
+    self.extracted = tools
+    vim.iter(tools):each(function(t)
+      return self:setup(chat, t)
+    end)
+  end
 end
 
 ---Setup the tool in the chat buffer based on the LLM's response
@@ -145,8 +193,8 @@ function Tools:run()
   _G.codecompanion_cancel_tool = false
 
   local requires_approval = (
-    config.strategies.agent.tools[self.tool.name].opts
-      and config.strategies.agent.tools[self.tool.name].opts.user_approval
+    config.strategies.chat.agents.tools[self.tool.name].opts
+      and config.strategies.chat.agents.tools[self.tool.name].opts.user_approval
     or false
   )
 
@@ -240,14 +288,13 @@ function Tools:run()
         return close()
       end
 
-      if output.status == CONSTANTS.STATUS_ERROR then
+      if data.status == CONSTANTS.STATUS_ERROR then
         status = CONSTANTS.STATUS_ERROR
-        table.insert(stderr, output.msg)
-        log:error("Error whilst running %s: %s", self.tool.name, output.msg)
-        output.error(action, output.msg)
+        table.insert(stderr, data.msg)
+        output.error(action, data.msg)
       else
-        table.insert(stdout, output.msg)
-        output.success(action, output.msg)
+        table.insert(stdout, data.msg)
+        output.success(action, data.msg)
       end
 
       if not should_iter() then
@@ -441,10 +488,7 @@ end
 ---@return nil
 function Tools:reset()
   api.nvim_clear_autocmds({ group = self.aug })
-
-  self.tool = {}
-  self.chat = {}
-
+  self.extracted = {}
   log:debug("Agent finished")
 end
 
@@ -468,12 +512,14 @@ function Tools:fold_xml()
 
   vim.o.foldmethod = "manual"
 
-  for _, matches, _ in query:iter_matches(tree:root(), self.bufnr, 0, -1, { all = false }) do
-    local code_node = matches[2] -- The second capture is always the code block
+  for _, matches, _ in query:iter_matches(tree:root(), self.bufnr) do
+    local nodes = matches[2] -- The second capture is always the code block
+    local code_node = type(nodes) == "table" and nodes[1] or nodes
+
     if code_node then
       local start_row, _, end_row, _ = code_node:range()
       if start_row < end_row then
-        api.nvim_buf_call(self.chat.bufnr, function()
+        api.nvim_buf_call(self.bufnr, function()
           vim.cmd(string.format("%d,%dfold", start_row, end_row))
         end)
       end
@@ -496,7 +542,7 @@ function Tools:add_error_to_chat(error)
     content = "Please correct for the error message I've shared",
   })
 
-  if self.agent_config.opts.auto_submit_errors then
+  if self.agent_config.opts and self.agent_config.opts.auto_submit_errors then
     self.chat:submit()
   end
 

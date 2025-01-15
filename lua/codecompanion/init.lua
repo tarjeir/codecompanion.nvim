@@ -85,21 +85,26 @@ M.run_inline_prompt = function(prompt, args)
     :start(prompt.strategy)
 end
 
----Add visually selected code to the current chat buffer
+--Add visually selected code to the current chat buffer
 ---@param args table
 ---@return nil
 M.add = function(args)
-  local chat = M.last_chat()
-
-  if not chat then
-    return log:warn("No chat buffer found")
-  end
-  if not config.opts.send_code then
-    return log:warn("Sending of code to an LLM has been disabled")
+  if not config.can_send_code() then
+    return log:warn("Sending of code has been disabled")
   end
 
   local context = context_utils.get(api.nvim_get_current_buf(), args)
   local content = table.concat(context.lines, "\n")
+
+  local chat = M.last_chat()
+
+  if not chat then
+    chat = M.chat()
+
+    if not chat then
+      return log:warn("Could not create chat buffer")
+    end
+  end
 
   chat:add_buf_message({
     role = config.constants.USER_ROLE,
@@ -111,6 +116,7 @@ M.add = function(args)
       .. content
       .. "\n```\n",
   })
+  chat.ui:open()
 end
 
 ---Open a chat buffer and converse with an LLM
@@ -274,11 +280,11 @@ M.setup = function(opts)
           vim.cmd.syntax('match CodeCompanionChatVariable "#' .. name .. ':\\d\\+-\\?\\d\\+"')
         end
       end)
-      vim.iter(config.strategies.agent.tools):each(function(name, _)
+      vim.iter(config.strategies.chat.agents.tools):each(function(name, _)
         vim.cmd.syntax('match CodeCompanionChatTool "@' .. name .. '"')
       end)
       vim
-        .iter(config.strategies.agent)
+        .iter(config.strategies.chat.agents)
         :filter(function(name)
           return name ~= "tools"
         end)
@@ -321,14 +327,22 @@ M.setup = function(opts)
     },
   }))
 
-  -- Setup completion for cmp
+  -- Setup completion for blink.cmp and cmp
   local has_cmp, cmp = pcall(require, "cmp")
-  local has_blink, _ = pcall(require, "blink.cmp")
+  local has_blink, blink = pcall(require, "blink.cmp")
+  if has_blink then
+    pcall(function()
+      blink.add_provider("codecompanion", {
+        name = "CodeCompanion",
+        module = "codecompanion.providers.completion.blink",
+        enabled = true,
+        score_offset = 10,
+      })
+    end)
   -- We need to check for blink alongside cmp as blink.compat has a module that
   -- is detected by a require("cmp") call and a lot of users have it installed
   -- Reference: https://github.com/olimorris/codecompanion.nvim/discussions/501
-  -- TODO: Once we add blink.cmp support natively it can take precedence
-  if has_cmp and not has_blink then
+  elseif has_cmp and not has_blink then
     local completion = "codecompanion.providers.completion.cmp"
     cmp.register_source("codecompanion_models", require(completion .. ".models").new(config))
     cmp.register_source("codecompanion_slash_commands", require(completion .. ".slash_commands").new(config))
@@ -336,12 +350,12 @@ M.setup = function(opts)
     cmp.register_source("codecompanion_variables", require(completion .. ".variables").new())
     cmp.setup.filetype("codecompanion", {
       enabled = true,
-      sources = {
+      sources = vim.list_extend({
         { name = "codecompanion_models" },
         { name = "codecompanion_slash_commands" },
         { name = "codecompanion_tools" },
         { name = "codecompanion_variables" },
-      },
+      }, cmp.get_config().sources),
     })
   end
 

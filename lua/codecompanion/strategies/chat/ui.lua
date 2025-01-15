@@ -8,6 +8,7 @@ local yaml = require("codecompanion.utils.yaml")
 
 local log = require("codecompanion.utils.log")
 local ui = require("codecompanion.utils.ui")
+local util = require("codecompanion.utils")
 
 local api = vim.api
 
@@ -81,19 +82,33 @@ function UI:open()
     }
     self.winnr = api.nvim_open_win(self.bufnr, true, win_opts)
   elseif window.layout == "vertical" then
-    local cmd = "vsplit"
-    if width ~= 0 then
-      cmd = width .. cmd
+    local position = window.position
+    if position == nil or (position ~= "left" and position ~= "right") then
+      position = vim.opt.splitright:get() and "right" or "left"
     end
-    vim.cmd(cmd)
+    vim.cmd("vsplit")
+    if position == "left" and vim.opt.splitright:get() then
+      vim.cmd("wincmd h")
+    end
+    if position == "right" and not vim.opt.splitright:get() then
+      vim.cmd("wincmd l")
+    end
+    vim.cmd("vertical resize " .. width)
     self.winnr = api.nvim_get_current_win()
     api.nvim_win_set_buf(self.winnr, self.bufnr)
   elseif window.layout == "horizontal" then
-    local cmd = "split"
-    if height ~= 0 then
-      cmd = height .. cmd
+    local position = window.position
+    if position == nil or (position ~= "top" and position ~= "bottom") then
+      position = vim.opt.splitbelow:get() and "bottom" or "top"
     end
-    vim.cmd(cmd)
+    vim.cmd("split")
+    if position == "top" and vim.opt.splitbelow:get() then
+      vim.cmd("wincmd k")
+    end
+    if position == "bottom" and not vim.opt.splitbelow:get() then
+      vim.cmd("wincmd j")
+    end
+    vim.cmd("resize " .. height)
     self.winnr = api.nvim_get_current_win()
     api.nvim_win_set_buf(self.winnr, self.bufnr)
   else
@@ -106,7 +121,7 @@ function UI:open()
   self:follow()
 
   log:trace("Chat opened with ID %d", self.id)
-
+  util.fire("ChatOpened", { bufnr = self.bufnr })
   return self
 end
 
@@ -127,6 +142,8 @@ function UI:hide()
   else
     vim.cmd("buffer " .. vim.fn.bufnr("#"))
   end
+
+  util.fire("ChatHidden", { bufnr = self.bufnr })
 end
 
 ---Follow the cursor in the chat buffer
@@ -156,20 +173,24 @@ function UI:is_visible()
   return self.winnr and api.nvim_win_is_valid(self.winnr) and api.nvim_win_get_buf(self.winnr) == self.bufnr
 end
 
--- is_active
+---Get the formatted header for the chat buffer
+---@param role string The role of the user
+---@return string
+function UI:format_header(role)
+  local header = "## " .. role
+  if config.display.chat.show_header_separator then
+    header = string.format("%s %s", header, config.display.chat.separator)
+  end
 
--- Follow
+  return header
+end
 
 ---Format the header in the chat buffer
 ---@param tbl table containing the buffer contents
 ---@param role string The role of the user to display in the header
 ---@return nil
-function UI:format_header(tbl, role)
-  if config.display.chat.show_header_separator then
-    table.insert(tbl, string.format("## %s %s", role, config.display.chat.separator))
-  else
-    table.insert(tbl, string.format("## %s", role))
-  end
+function UI:set_header(tbl, role)
+  table.insert(tbl, self:format_header(role))
   table.insert(tbl, "")
 end
 
@@ -196,10 +217,10 @@ function UI:render(context, messages, opts)
         end
 
         if msg.role == config.constants.USER_ROLE and last_set_role ~= config.constants.USER_ROLE then
-          self:format_header(lines, self.roles.user)
+          self:set_header(lines, self.roles.user)
         end
         if msg.role == config.constants.LLM_ROLE and last_set_role ~= config.constants.LLM_ROLE then
-          self:format_header(lines, self.roles.llm)
+          self:set_header(lines, self.roles.llm)
         end
 
         for _, text in ipairs(vim.split(msg.content, "\n", { plain = true, trimempty = true })) do
@@ -235,7 +256,7 @@ function UI:render(context, messages, opts)
 
   if vim.tbl_isempty(messages) then
     log:trace("Setting the header for the chat buffer")
-    self:format_header(lines, self.roles.user)
+    self:set_header(lines, self.roles.user)
     spacer()
   else
     log:trace("Setting the messages in the chat buffer")
@@ -339,14 +360,16 @@ function UI:last()
 end
 
 ---Display the tokens in the chat buffer
+---@param parser table
+---@param start_row integer
 ---@return nil
-function UI:display_tokens()
+function UI:display_tokens(parser, start_row)
   if config.display.chat.show_token_count and self.tokens then
     local to_display = config.display.chat.token_count
     if type(to_display) == "function" then
       local ns_id = api.nvim_create_namespace(CONSTANTS.NS_TOKENS)
       to_display = to_display(self.tokens, self.adapter)
-      require("codecompanion.utils.tokens").display(to_display, ns_id, self.bufnr)
+      require("codecompanion.utils.tokens").display(to_display, ns_id, parser, start_row, self.bufnr)
     end
   end
 end
@@ -376,9 +399,10 @@ function UI:fold_code()
   vim.o.foldmethod = "manual"
 
   local role
-  for _, matches in query:iter_matches(tree:root(), self.bufnr, nil, nil, { all = false }) do
+  for _, matches in query:iter_matches(tree:root(), self.bufnr) do
     local match = {}
-    for id, node in pairs(matches) do
+    for id, nodes in pairs(matches) do
+      local node = type(nodes) == "table" and nodes[1] or nodes
       match = vim.tbl_extend("keep", match, {
         [query.captures[id]] = {
           node = node,

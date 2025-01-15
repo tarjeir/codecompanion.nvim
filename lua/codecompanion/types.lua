@@ -1,3 +1,6 @@
+---@class vim.treesitter.LanguageTree
+---@field parse function
+
 ---@class TSNode
 ---@field start_pos function
 ---@field end_pos function
@@ -12,27 +15,52 @@
 ---@field Chat CodeCompanion.Chat The chat buffer
 ---@field config table The config of the slash command
 ---@field context table The context of the chat buffer from the completion menu
+---@field opts table The options for the slash command
+---@field output fun(selected: table, opts: table): nil The function to call when a selection is made
 
 ---@class CodeCompanion.SlashCommandArgs
 ---@field Chat CodeCompanion.Chat The chat buffer
 ---@field config table The config of the slash command
 ---@field context table The context of the chat buffer from the completion menu
+---@field opts table The options for the slash command
 
 ---@class CodeCompanion.Variables
 ---@field vars table The variables from the config
 
 ---@class CodeCompanion.Variable
----@field chat CodeCompanion.Chat The chat buffer
+---@field Chat CodeCompanion.Chat The chat buffer
+---@field config table The config for the variable
 ---@field params table The context of the chat buffer from the completion menu
 
 ---@class CodeCompanion.VariableArgs
----@field chat CodeCompanion.Chat The chat buffer
+---@field Chat CodeCompanion.Chat The chat buffer
+---@field config table The config for the variable
 ---@field params table The context of the chat buffer from the completion menu
 
 ---@class CodeCompanion.Cmd
 ---@field adapter CodeCompanion.Adapter The adapter to use for the chat
 ---@field context table The context of the buffer that the chat was initiated from
 ---@field prompts table Any prompts to be sent to the LLM
+
+---@class CodeCompanion.Change
+---@field type "add"|"delete"|"modify" The type of change
+---@field start number Starting line number
+---@field end_line number Ending line number
+---@field lines? string[] Added or deleted lines
+---@field old_lines? string[] Original lines (for modify type)
+---@field new_lines? string[] New lines (for modify type)
+
+---@class CodeCompanion.Watchers
+---@field buffers table<number, CodeCompanion.WatcherState> Map of buffer numbers to their states
+---@field augroup integer The autocmd group ID
+---@field watch fun(self: CodeCompanion.Watchers, bufnr: number): nil Start watching a buffer
+---@field unwatch fun(self: CodeCompanion.Watchers, bufnr: number): nil Stop watching a buffer
+---@field get_changes fun(self: CodeCompanion.Watchers, bufnr: number): CodeCompanion.Change[]|nil Get changes since last check
+
+---@class CodeCompanion.WatcherState
+---@field content string[] Complete buffer content
+---@field changedtick number Last known changedtick
+---@field last_sent string[] Last content sent to LLM
 
 ---@class CodeCompanion.Chat
 ---@field opts CodeCompanion.ChatArgs Store all arguments in this table
@@ -42,12 +70,14 @@
 ---@field context table The context of the buffer that the chat was initiated from
 ---@field current_request table|nil The current request being executed
 ---@field current_tool table The current tool being executed
----@field cycle number The amount of times the chat has been sent to the LLM
+---@field cycle number Records the number of turn-based interactions (User -> LLM) that have taken place
+---@field header_line number The line number that any Tree-sitter parsing should start from
 ---@field from_prompt_library? boolean Whether the chat was initiated from the prompt library-
 ---@field header_ns integer The namespace for the virtual text that appears in the header
 ---@field id integer The unique identifier for the chat
 ---@field intro_message? boolean Whether the welcome message has been shown
 ---@field messages? table The messages in the chat buffer
+---@field parser vim.treesitter.LanguageTree The Tree-sitter parser for the chat buffer
 ---@field References CodeCompanion.Chat.References
 ---@field refs? table<CodeCompanion.Chat.Ref> References which are sent to the LLM e.g. buffers, slash command output
 ---@field settings? table The settings that are used in the adapter of the chat buffer
@@ -57,6 +87,7 @@
 ---@field tools_in_use? nil|table The tools that are currently being used in the chat
 ---@field ui CodeCompanion.Chat.UI The UI of the chat buffer
 ---@field variables? CodeCompanion.Variables The variables available to the user
+---@field watchers CodeCompanion.Watchers The buffer watcher instance
 
 ---@class CodeCompanion.ChatArgs Arguments that can be injected into the chat
 ---@field adapter? CodeCompanion.Adapter The adapter used in this chat buffer
@@ -73,9 +104,11 @@
 
 ---@class CodeCompanion.Chat.Ref
 ---@field source string The source of the reference e.g. slash_command
----@field name string The name of the source e.g. buffer
 ---@field id string The unique ID of the reference which links it to a message in the chat buffer and is displayed to the user
 ---@field opts? table
+---@field opts.pinned? boolean Whether this reference is pinned
+---@field opts.watched? boolean Whether this reference is being watched for changes
+---@field bufnr? number The buffer number if this is a buffer reference
 
 ---@class CodeCompanion.Chat.UI
 ---@field adapter CodeCompanion.Adapter
@@ -110,7 +143,7 @@
 ---@field handlers.on_exit? fun(self: CodeCompanion.Tools): any Function to call at the end of all of the commands
 ---@field output? table Functions which can be called after the command finishes
 ---@field output.rejected? fun(self: CodeCompanion.Tools, cmd: table): any Function to call if the user rejects running a command
----@field output.error? fun(self: CodeCompanion.Tools, cmd: table, error: table|string): any Function to call if the tool is unsuccesful
+---@field output.error? fun(self: CodeCompanion.Tools, cmd: table, error: table|string): any Function to call if the tool is unsuccessful
 ---@field output.success? fun(self: CodeCompanion.Tools, cmd: table, output: table|string): any Function to call if the tool is successful
 ---@field request table The request from the LLM to use the Tool
 
@@ -118,6 +151,7 @@
 ---@field aug number The augroup for the tool
 ---@field bufnr number The buffer of the chat buffer
 ---@field chat CodeCompanion.Chat The chat buffer that initiated the tool
+---@field extracted table The extracted tools from the LLM's response
 ---@field messages table The messages in the chat buffer
 ---@field tool CodeCompanion.Tool The current tool that's being run
 ---@field agent_config table The agent strategy from the config
@@ -138,8 +172,14 @@
 ---@field validate table Validate an item
 ---@field resolve table Resolve an item into an action
 ---@field context table Store all arguments in this table
----
+
 ---@class CodeCompanion.Actions.ProvidersArgs Arguments that can be injected into the chat
 ---@field validate table Validate an item
 ---@field resolve table Resolve an item into an action
 ---@field context table The buffer context
+
+---@class CodeCompanion.Keymaps
+---@field bufnr number The buffer number to apply the keymaps to
+---@field callbacks table The callbacks to execute for each keymap
+---@field data table The CodeCompanion class
+---@field keymaps table The keymaps from the user's config

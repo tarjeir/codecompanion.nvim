@@ -136,7 +136,9 @@ local function create_echo_handler(opts)
     elseif level == vim.log.levels.WARN then
       hl = "DiagnosticWarn"
     end
-    vim.api.nvim_echo({ { text, hl } }, true, {})
+    vim.schedule(function()
+      vim.api.nvim_echo({ { text, hl } }, true, {})
+    end)
   end
   return LogHandler.new(opts)
 end
@@ -246,6 +248,19 @@ end
 ---@param ... any
 function Logger:error(msg, ...)
   self:log(vim.log.levels.ERROR, msg, ...)
+end
+
+---Track the time elapsed between two executions
+---@return number|nil
+function Logger:time()
+  if not self._timer_start then
+    self._timer_start = vim.loop.hrtime()
+    return nil
+  end
+
+  local elapsed = (vim.loop.hrtime() - self._timer_start) / 1000000 -- Convert to ms
+  self._timer_start = nil
+  return elapsed
 end
 
 ---@generic T : any

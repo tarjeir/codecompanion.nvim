@@ -57,16 +57,8 @@ body:
                       ["<Tab>"] = { "select_next", "fallback" },
                     },
                     sources = {
-                      completion = {
-                        enabled_providers = { "lsp", "path", "buffer", "codecompanion" },
-                      },
-                      providers = {
-                        codecompanion = {
-                          name = "CodeCompanion",
-                          module = "codecompanion.providers.completion.blink",
-                          enabled = true,
-                        },
-                      },
+                      default = { "lsp", "path", "buffer", "codecompanion" },
+                      cmdline = {}, -- Disable sources for command-line mode
                     },
                   },
                 },
@@ -203,6 +195,16 @@ body:
           3.
       validations:
         required: false
+
+    - type: input
+      id: adapter
+      attributes:
+        label: Adapter and model
+        description: Please share the adapter and model you used
+        placeholder: |
+          Anthropic and claude-3.5-sonnet
+      validations:
+        required: true
 
     - type: checkboxes
       id: final-checks

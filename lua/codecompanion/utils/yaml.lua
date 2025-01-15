@@ -47,8 +47,18 @@ M.encode = function(data)
   end
 end
 
+---Decode a yaml node
+---@param source string
+---@param node TSNode
+---@return any
 local function decode(source, node)
-  local nt = node:type()
+  local ok, nt = pcall(function()
+    return node:type()
+  end)
+  if not ok then
+    return {}
+  end
+
   if nt == "stream" or nt == "document" or nt == "block_node" or nt == "flow_node" or nt == "plain_scalar" then
     for child in node:iter_children() do
       if child:named() then
@@ -86,6 +96,15 @@ local function decode(source, node)
     return text:sub(2, text:len() - 1)
   elseif nt == "integer_scalar" or nt == "float_scalar" then
     return tonumber(vim.treesitter.get_node_text(node, source))
+  elseif nt == "boolean_scalar" then
+    local text = vim.treesitter.get_node_text(node, source)
+    if text == "true" then
+      return true
+    elseif text == "false" then
+      return false
+    else
+      error("Invalid boolean scalar")
+    end
   elseif nt == "null_scalar" then
     return nil
   elseif nt == "ERROR" then

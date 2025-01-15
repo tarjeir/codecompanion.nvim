@@ -7,30 +7,33 @@ local config = require("codecompanion.config")
 
 local api = vim.api
 local user_role = config.strategies.chat.roles.user
+local icons_path = config.display.chat.icons
+local icons = {
+  pinned = icons_path.pinned_buffer,
+  watched = icons_path.watched_buffer,
+}
+
+local allowed_pins = {
+  "<buf>",
+  "<file>",
+}
+
+local allowed_watchers = {
+  "<buf>",
+}
 
 ---Parse the chat buffer to find where to add the references
 ---@param chat CodeCompanion.Chat
 ---@return table|nil
 local function ts_parse_buffer(chat)
-  local parser = vim.treesitter.get_parser(chat.bufnr, "markdown")
-  local query = vim.treesitter.query.parse(
-    "markdown",
-    string.format(
-      [[(
-  (section
-    (atx_heading) @heading
-    (#match? @heading "## %s")
-  (block_quote)? @refs
-  )
-)]],
-      user_role
-    )
-  )
+  local query = vim.treesitter.query.get("markdown", "reference")
 
-  local root = parser:parse()[1]:root()
+  local tree = chat.parser:parse({ chat.header_line - 1, -1 })[1]
+  local root = tree:root()
 
-  local refs = nil
-  for id, node in query:iter_captures(root, chat.bufnr, 0, -1) do
+  -- Check if there are any references already in the chat buffer
+  local refs
+  for id, node in query:iter_captures(root, chat.bufnr, chat.header_line - 1, -1) do
     if query.captures[id] == "refs" then
       refs = node
     end
@@ -45,17 +48,20 @@ local function ts_parse_buffer(chat)
     }
   end
 
-  local heading = nil
-  for id, node in query:iter_captures(root, chat.bufnr, 0, -1) do
-    if query.captures[id] == "heading" then
-      heading = node
+  -- If not, check if there is a heading to add the references below
+  local role
+  local role_node
+  for id, node in query:iter_captures(root, chat.bufnr, chat.header_line - 1, -1) do
+    if query.captures[id] == "role" then
+      role = vim.treesitter.get_node_text(node, chat.bufnr)
+      role_node = node
     end
   end
 
-  if heading then
-    local start_row, _, end_row, _ = heading:range()
+  if role_node and role == chat.ui:format_header(user_role) then
+    local start_row, _, end_row, _ = role_node:range()
     return {
-      capture = "heading",
+      capture = "role",
       start_row = start_row + 1,
       end_row = end_row + 1,
     }
@@ -65,6 +71,8 @@ local function ts_parse_buffer(chat)
 end
 
 ---Add a reference to the chat buffer
+---@param chat CodeCompanion.Chat
+---@param ref CodeCompanion.Chat.Ref
 ---@param row integer
 local function add(chat, ref, row)
   local lines = {}
@@ -80,18 +88,16 @@ local function add(chat, ref, row)
 end
 
 ---@class CodeCompanion.Chat.References
----@field chat CodeCompanion.Chat
----@field refs table<CodeCompanion.Chat.Ref>
+---@field Chat CodeCompanion.Chat
 local References = {}
 
 ---@class CodeCompanion.Chat.RefsArgs
 ---@field chat CodeCompanion.Chat
----@field refs table<CodeCompanion.Chat.Ref>
 
----@param chat CodeCompanion.Chat
-function References.new(chat)
+---@param args CodeCompanion.Chat.RefsArgs
+function References.new(args)
   local self = setmetatable({
-    chat = chat,
+    Chat = args.chat,
   }, { __index = References })
 
   return self
@@ -99,7 +105,7 @@ end
 
 ---Add a reference to the chat buffer
 ---@param ref CodeCompanion.Chat.Ref
----@return CodeCompanion.Chat.References
+---@return nil
 function References:add(ref)
   if not ref or not config.display.chat.show_references then
     return self
@@ -107,27 +113,29 @@ function References:add(ref)
 
   if ref then
     if not ref.opts then
-      ref.opts = {
-        pinned = false,
-      }
+      ref.opts = {}
     end
-    table.insert(self.chat.refs, ref)
+    -- Ensure both properties exist with defaults
+    ref.opts.pinned = ref.opts.pinned or false
+    ref.opts.watched = ref.opts.watched or false
+    table.insert(self.Chat.refs, ref)
+    -- If it's a buffer reference and it's being watched, start watching
+    if ref.bufnr and ref.opts.watched then
+      self.Chat.watchers:watch(ref.bufnr)
+    end
   end
 
-  local parsed_buffer = ts_parse_buffer(self.chat)
+  local parsed_buffer = ts_parse_buffer(self.Chat)
 
   if parsed_buffer then
     -- If the reference block already exists, add to it
     if parsed_buffer.capture == "refs" then
-      add(self.chat, ref, parsed_buffer.end_row - 1)
+      add(self.Chat, ref, parsed_buffer.end_row - 1)
     -- If there are no references then add a new block below the heading
-    elseif parsed_buffer.capture == "heading" then
-      add(self.chat, ref, parsed_buffer.end_row)
+    elseif parsed_buffer.capture == "role" then
+      add(self.Chat, ref, parsed_buffer.end_row)
     end
-    return self
   end
-
-  return self
 end
 
 ---Clear any references from a message in the chat buffer to remove unnecessary
@@ -135,12 +143,12 @@ end
 ---@param message table
 ---@return table
 function References:clear(message)
-  if vim.tbl_isempty(self.chat.refs) or not config.display.chat.show_references then
+  if vim.tbl_isempty(self.Chat.refs) or not config.display.chat.show_references then
     return message or nil
   end
 
   local parser = vim.treesitter.get_string_parser(message.content, "markdown")
-  local query = vim.treesitter.query.get("markdown", "chat")
+  local query = vim.treesitter.query.get("markdown", "reference")
   local root = parser:parse()[1]:root()
 
   local refs = nil
@@ -163,58 +171,33 @@ function References:clear(message)
 end
 
 ---Render all the references in the chat buffer after a response from the LLM
----@return CodeCompanion.Chat.References
+---@return nil
 function References:render()
-  if vim.tbl_isempty(self.chat.refs) then
+  local chat = self.Chat
+  if vim.tbl_isempty(chat.refs) then
     return self
   end
+  local start_row = chat.header_line + 1
 
-  local parser = vim.treesitter.get_parser(self.chat.bufnr, "markdown")
-  local query = vim.treesitter.query.parse(
-    "markdown",
-    string.format(
-      [[(
-  (section
-    (atx_heading) @heading
-    (#match? @heading "## %s")
-  )
-)]],
-      user_role
-    )
-  )
-  local root = parser:parse()[1]:root()
+  local lines = {}
+  table.insert(lines, "> Sharing:")
 
-  local heading = nil
-  for id, node in query:iter_captures(root, self.chat.bufnr, 0, -1) do
-    if query.captures[id] == "heading" then
-      heading = node
+  for _, ref in pairs(chat.refs) do
+    if not ref then
+      goto continue
     end
-  end
-
-  if heading then
-    local start_row, _, _, _ = heading:range()
-    start_row = start_row + 2
-
-    local lines = {}
-    table.insert(lines, "> Sharing:")
-
-    for _, ref in pairs(self.chat.refs) do
-      if not ref then
-        goto continue
-      end
-      if ref.opts and ref.opts.pinned then
-        table.insert(lines, string.format("> - %s%s", config.display.chat.icons.pinned_buffer, ref.id))
-      else
-        table.insert(lines, string.format("> - %s", ref.id))
-      end
-      ::continue::
+    if ref.opts and ref.opts.pinned then
+      table.insert(lines, string.format("> - %s%s", icons.pinned, ref.id))
+    elseif ref.opts and ref.opts.watched then
+      table.insert(lines, string.format("> - %s%s", icons.watched, ref.id))
+    else
+      table.insert(lines, string.format("> - %s", ref.id))
     end
-    table.insert(lines, "")
-
-    api.nvim_buf_set_lines(self.chat.bufnr, start_row, start_row, false, lines)
+    ::continue::
   end
+  table.insert(lines, "")
 
-  return self
+  return api.nvim_buf_set_lines(chat.bufnr, start_row, start_row, false, lines)
 end
 
 ---Make a unique ID from the buffer number
@@ -225,43 +208,53 @@ function References:make_id_from_buf(bufnr)
   return vim.fn.fnamemodify(bufname, ":.")
 end
 
+---Determine if a reference can be pinned
+---@param ref string
+---@return boolean
+function References:can_be_pinned(ref)
+  for _, pin in ipairs(allowed_pins) do
+    if ref:find(pin) then
+      return true
+    end
+  end
+  return false
+end
+
+---Determine if a reference can be watched
+---@param ref string
+---@return boolean
+function References:can_be_watched(ref)
+  for _, watch in ipairs(allowed_watchers) do
+    if ref:find(watch) then
+      return true
+    end
+  end
+  return false
+end
+
 ---Get the references from the chat buffer
 ---@return table
 function References:get_from_chat()
-  local refs = {}
-  local parser = vim.treesitter.get_parser(self.chat.bufnr, "markdown")
-  local query = vim.treesitter.query.parse(
-    "markdown",
-    string.format(
-      [[(
-  (section
-    (atx_heading) @heading
-    (#match? @heading "## %s")
-  )
-)]],
-      user_role
-    )
-  )
-  local root = parser:parse()[1]:root()
-  local last_heading = nil
-  -- Get the last heading
-  for id, node in query:iter_captures(root, self.chat.bufnr, 0, -1) do
-    if query.captures[id] == "heading" then
-      last_heading = node
-    end
-  end
+  local query = vim.treesitter.query.get("markdown", "reference")
 
-  if last_heading then
-    local start_row, _, _, _ = last_heading:range()
-    -- Get the references
-    local refs_query =
-      vim.treesitter.query.parse("markdown", [[(block_quote (list (list_item (paragraph (inline) @ref))))]])
-    for id, node in refs_query:iter_captures(root, self.chat.bufnr, start_row, -1) do
-      if refs_query.captures[id] == "ref" then
-        local ref = vim.treesitter.get_node_text(node, self.chat.bufnr)
-        ref:gsub("^> %- ", "")
-        table.insert(refs, vim.trim(ref))
-      end
+  local tree = self.Chat.parser:parse()[1]
+  local root = tree:root()
+
+  local refs = {}
+  local role = nil
+
+  local chat = self.Chat
+
+  for id, node in query:iter_captures(root, chat.bufnr, chat.header_line - 1, -1) do
+    if query.captures[id] == "role" then
+      role = vim.treesitter.get_node_text(node, chat.bufnr)
+    elseif role == chat.ui:format_header(user_role) and query.captures[id] == "ref" then
+      local ref = vim.treesitter.get_node_text(node, chat.bufnr)
+      -- Clean both pinned and watched icons
+      ref = vim.iter(vim.tbl_values(icons)):fold(select(1, ref:gsub("^> %- ", "")), function(acc, icon)
+        return select(1, acc:gsub(icon, ""))
+      end)
+      table.insert(refs, vim.trim(ref))
     end
   end
 

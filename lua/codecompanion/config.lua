@@ -35,6 +35,69 @@ local defaults = {
         llm = "CodeCompanion", -- The markdown header content for the LLM's responses
         user = "Me", -- The markdown header for your questions
       },
+      agents = {
+        ["full_stack_dev"] = {
+          description = "Full Stack Developer - Can run code, edit code and modify files",
+          system_prompt = "**DO NOT** make any assumptions about the dependencies that a user has installed. If you need to install any dependencies to fulfil the user's request, do so via the Command Runner tool. If the user doesn't specify a path, use their current working directory.",
+          tools = {
+            "cmd_runner",
+            "editor",
+            "files",
+          },
+        },
+        tools = {
+          ["cmd_runner"] = {
+            callback = "strategies.chat.tools.cmd_runner",
+            description = "Run shell commands initiated by the LLM",
+            opts = {
+              user_approval = true,
+            },
+          },
+          ["editor"] = {
+            callback = "strategies.chat.tools.editor",
+            description = "Update a buffer with the LLM's response",
+          },
+          ["files"] = {
+            callback = "strategies.chat.tools.files",
+            description = "Update the file system with the LLM's response",
+            opts = {
+              user_approval = true,
+            },
+          },
+          ["rag"] = {
+            callback = "strategies.chat.tools.rag",
+            description = "Supplement the LLM with real-time info from the internet",
+            opts = {
+              hide_output = true,
+            },
+          },
+          opts = {
+            auto_submit_errors = false, -- Send any errors to the LLM automatically?
+            auto_submit_success = false, -- Send any successful output to the LLM automatically?
+            system_prompt = [[## Tools
+
+You now have access to tools:
+- These enable you to assist the user with specific tasks
+- The user will outline which specific tools you have access to
+- You trigger a tool by following a specific XML schema which is defined for each tool
+
+You must:
+- Only use the tool when prompted by the user, despite having access to it
+- Follow the specific tool's schema
+- Respond with the schema in XML format
+- Ensure the schema is in a markdown code block that is designated as XML
+- Ensure any output you're intending to execute will be able to parsed as valid XML
+
+Points to note:
+- The user detects that you've triggered a tool by using Tree-sitter to parse your markdown response
+- If you call multiple tools within the same response:
+  - Each unique tool MUST be called in its own, individual, XML codeblock
+  - Tools of the same type SHOULD be called in the same XML codeblock
+- If your response doesn't follow the tool's schema, the tool will not execute
+- Tools should not alter your core tasks and how you respond to a user]],
+          },
+        },
+      },
       variables = {
         ["buffer"] = {
           callback = "strategies.chat.variables.buffer",
@@ -49,7 +112,6 @@ local defaults = {
           description = "Share LSP information and code for the current buffer",
           opts = {
             contains_code = true,
-            hide_reference = true,
           },
         },
         ["viewport"] = {
@@ -57,7 +119,6 @@ local defaults = {
           description = "Share the code that you see in Neovim with the LLM",
           opts = {
             contains_code = true,
-            hide_reference = true,
           },
         },
       },
@@ -91,7 +152,7 @@ local defaults = {
           description = "Insert content from help tags",
           opts = {
             contains_code = false,
-            max_lines = 128, -- Maximum amount of lines to of the help file to send (NOTE: each vimdoc line is typically 10 tokens)
+            max_lines = 128, -- Maximum amount of lines to of the help file to send (NOTE: Each vimdoc line is typically 10 tokens)
             provider = "telescope", -- telescope|mini_pick|fzf_lua
           },
         },
@@ -140,7 +201,7 @@ local defaults = {
             n = { "<CR>", "<C-s>" },
             i = "<C-s>",
           },
-          index = 1,
+          index = 2,
           callback = "keymaps.send",
           description = "Send",
         },
@@ -148,7 +209,7 @@ local defaults = {
           modes = {
             n = "gr",
           },
-          index = 2,
+          index = 3,
           callback = "keymaps.regenerate",
           description = "Regenerate the last response",
         },
@@ -157,7 +218,7 @@ local defaults = {
             n = "<C-c>",
             i = "<C-c>",
           },
-          index = 3,
+          index = 4,
           callback = "keymaps.close",
           description = "Close Chat",
         },
@@ -165,7 +226,7 @@ local defaults = {
           modes = {
             n = "q",
           },
-          index = 4,
+          index = 5,
           callback = "keymaps.stop",
           description = "Stop Request",
         },
@@ -173,7 +234,7 @@ local defaults = {
           modes = {
             n = "gx",
           },
-          index = 5,
+          index = 6,
           callback = "keymaps.clear",
           description = "Clear Chat",
         },
@@ -181,7 +242,7 @@ local defaults = {
           modes = {
             n = "gc",
           },
-          index = 6,
+          index = 7,
           callback = "keymaps.codeblock",
           description = "Insert Codeblock",
         },
@@ -189,15 +250,31 @@ local defaults = {
           modes = {
             n = "gy",
           },
-          index = 7,
+          index = 8,
           callback = "keymaps.yank_code",
           description = "Yank Code",
+        },
+        pin = {
+          modes = {
+            n = "gp",
+          },
+          index = 9,
+          callback = "keymaps.pin_reference",
+          description = "Pin Reference",
+        },
+        watch = {
+          modes = {
+            n = "gw",
+          },
+          index = 10,
+          callback = "keymaps.toggle_watch",
+          description = "Watch Buffer",
         },
         next_chat = {
           modes = {
             n = "}",
           },
-          index = 8,
+          index = 11,
           callback = "keymaps.next_chat",
           description = "Next Chat",
         },
@@ -205,7 +282,7 @@ local defaults = {
           modes = {
             n = "{",
           },
-          index = 9,
+          index = 12,
           callback = "keymaps.previous_chat",
           description = "Previous Chat",
         },
@@ -213,7 +290,7 @@ local defaults = {
           modes = {
             n = "]]",
           },
-          index = 10,
+          index = 13,
           callback = "keymaps.next_header",
           description = "Next Header",
         },
@@ -221,7 +298,7 @@ local defaults = {
           modes = {
             n = "[[",
           },
-          index = 11,
+          index = 14,
           callback = "keymaps.previous_header",
           description = "Previous Header",
         },
@@ -229,7 +306,7 @@ local defaults = {
           modes = {
             n = "ga",
           },
-          index = 12,
+          index = 15,
           callback = "keymaps.change_adapter",
           description = "Change adapter",
         },
@@ -237,7 +314,7 @@ local defaults = {
           modes = {
             n = "gf",
           },
-          index = 13,
+          index = 15,
           callback = "keymaps.fold_code",
           description = "Fold code",
         },
@@ -245,7 +322,7 @@ local defaults = {
           modes = {
             n = "gd",
           },
-          index = 14,
+          index = 16,
           callback = "keymaps.debug",
           description = "View debug info",
         },
@@ -253,7 +330,7 @@ local defaults = {
           modes = {
             n = "gs",
           },
-          index = 15,
+          index = 17,
           callback = "keymaps.toggle_system_prompt",
           description = "Toggle the system prompt",
         },
@@ -296,74 +373,10 @@ local defaults = {
         -- The prompt to send to the LLM when a user initiates the inline strategy and it needs to convert to a chat
         inline_to_chat = function(context)
           return fmt(
-            [[I want you to act as an expert and senior developer in the %s language. I will ask you questions, perhaps giving you code examples, and I want you to advise me with explanations and code where neccessary.]],
+            [[I want you to act as an expert and senior developer in the %s language. I will ask you questions, perhaps giving you code examples, and I want you to advise me with explanations and code where necessary.]],
             context.filetype
           )
         end,
-      },
-    },
-    -- AGENT STRATEGY ---------------------------------------------------------
-    agent = {
-      ["full_stack_dev"] = {
-        description = "Full Stack Developer - Can run code, edit code and modify files",
-        system_prompt = "**DO NOT** make any assumptions about the dependencies that a user has installed. If you need to install any dependencies to fulfil the user's request, do so via the Command Runner tool. If the user doesn't specify a path, use their current working directory.",
-        tools = {
-          "cmd_runner",
-          "editor",
-          "files",
-        },
-      },
-      tools = {
-        ["cmd_runner"] = {
-          callback = "strategies.chat.tools.cmd_runner",
-          description = "Run shell commands initiated by the LLM",
-          opts = {
-            user_approval = true,
-          },
-        },
-        ["editor"] = {
-          callback = "strategies.chat.tools.editor",
-          description = "Update a buffer with the LLM's response",
-        },
-        ["files"] = {
-          callback = "strategies.chat.tools.files",
-          description = "Update the file system with the LLM's response",
-          opts = {
-            user_approval = true,
-          },
-        },
-        ["rag"] = {
-          callback = "strategies.chat.tools.rag",
-          description = "Supplement the LLM with real-time info from the internet",
-          opts = {
-            hide_output = true,
-          },
-        },
-        opts = {
-          auto_submit_errors = false, -- Send any errors to the LLM automatically?
-          auto_submit_success = false, -- Send any successful output to the LLM automatically?
-          system_prompt = [[## Tools
-
-You now have access to tools:
-- These enable you to assist the user with specific tasks
-- The user will outline which specific tools you have access to
-- You trigger a tool by following a specific XML schema which is defined for each tool
-
-You must:
-- Only use the tool when prompted by the user, despite having access to it
-- Follow the specific tool's schema
-- Respond with the schema in XML format
-- Ensure the schema is in a markdown code block that is designated as XML
-- Ensure any output you're intending to execute will be able to parsed as valid XML
-
-Points to note:
-- The user detects that you've triggered a tool by using Tree-sitter to parse your markdown response
-- If you call multiple tools within the same response:
-  - Each unique tool MUST be called in its own, individual, XML codeblock
-  - Tools of the same type SHOULD be called in the same XML codeblock
-- If your response doesn't follow the tool's schema, the tool will not execute
-- Tools should not alter your core tasks and how you respond to a user]],
-        },
       },
     },
     -- CMD STRATEGY -----------------------------------------------------------
@@ -446,7 +459,7 @@ Points to note:
             role = constants.USER_ROLE,
             content = "Great. Now let's consider your code. I'd like you to check it carefully for correctness, style, and efficiency, and give constructive criticism for how to improve it.",
             opts = {
-              auto_submit = false,
+              auto_submit = true,
             },
           },
         },
@@ -456,7 +469,7 @@ Points to note:
             role = constants.USER_ROLE,
             content = "Thanks. Now let's revise the code based on the feedback, without additional explanations.",
             opts = {
-              auto_submit = false,
+              auto_submit = true,
             },
           },
         },
@@ -819,8 +832,13 @@ This is the code, for context:
       },
     },
     chat = {
+      icons = {
+        pinned_buffer = " ",
+        watched_buffer = "👀 ",
+      },
       window = {
         layout = "vertical", -- float|vertical|horizontal|buffer
+        position = nil, -- left|right|top|bottom (nil will default depending on vim.opt.splitright|vim.opt.splitbelow)
         border = "single",
         height = 0.8,
         width = 0.45,
@@ -840,7 +858,7 @@ This is the code, for context:
       },
       intro_message = "Welcome to CodeCompanion ✨! Press ? for options",
 
-      show_header_separator = false, -- Show header separators in the chat buffer? Set this to false if you're using an exteral markdown formatting plugin
+      show_header_separator = false, -- Show header separators in the chat buffer? Set this to false if you're using an external markdown formatting plugin
       separator = "─", -- The separator between the different messages in the chat buffer
 
       show_references = true, -- Show references (from slash commands and variables) in the chat buffer?
@@ -874,12 +892,16 @@ This is the code, for context:
     -- If this is false then any default prompt that is marked as containing code
     -- will not be sent to the LLM. Please note that whilst I have made every
     -- effort to ensure no code leakage, using this is at your own risk
+    ---@type boolean|function
+    ---@return boolean
     send_code = true,
 
-    -- This is the default prompt which is sent with every request in the chat
-    -- strategy. It is primarily based on the GitHub Copilot Chat's prompt
-    -- but with some modifications. You can choose to remove this via
-    -- your own config but note that LLM results may not be as good
+    ---This is the default prompt which is sent with every request in the chat
+    ---strategy. It is primarily based on the GitHub Copilot Chat's prompt
+    ---but with some modifications. You can choose to remove this via
+    ---your own config but note that LLM results may not be as good
+    ---@param opts table
+    ---@return string
     system_prompt = function(opts)
       local language = opts.language or "English"
       return string.format(
@@ -904,12 +926,12 @@ You must:
 - Minimize other prose.
 - Use Markdown formatting in your answers.
 - Include the programming language name at the start of the Markdown code blocks.
-- Avoid line numbers in code blocks.
+- Avoid including line numbers in code blocks.
 - Avoid wrapping the whole response in triple backticks.
 - Only return code that's relevant to the task at hand. You may not need to return all of the code that the user has shared.
 - Use actual line breaks instead of '\n' in your response to begin new lines.
 - Use '\n' only when you want a literal backslash followed by a character 'n'.
-- All non-code responses must use %s.
+- All non-code responses must be in %s.
 
 When given a task:
 1. Think step-by-step and describe your plan for what to build in pseudocode, written out in great detail, unless asked not to do so.
@@ -930,6 +952,15 @@ local M = {
 M.setup = function(args)
   args = args or {}
   M.config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), { constants = vim.deepcopy(constants) }, args)
+end
+
+M.can_send_code = function()
+  if type(M.config.opts.send_code) == "boolean" then
+    return M.config.opts.send_code
+  elseif type(M.config.opts.send_code) == "function" then
+    return M.config.opts.send_code()
+  end
+  return false
 end
 
 return setmetatable(M, {

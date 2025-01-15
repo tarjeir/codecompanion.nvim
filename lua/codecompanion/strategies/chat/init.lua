@@ -32,14 +32,13 @@ local function make_id(val)
   return hash.hash(val)
 end
 
-local _cached_settings = {}
+local _cached_settings
 
 ---Parse the chat buffer for settings
 ---@param bufnr integer
 ---@param adapter? CodeCompanion.Adapter
----@param ts_query? string
 ---@return table
-local function buf_parse_settings(bufnr, adapter, ts_query)
+local function ts_parse_settings(bufnr, adapter)
   if _cached_settings[bufnr] then
     return _cached_settings[bufnr]
   end
@@ -58,8 +57,11 @@ local function buf_parse_settings(bufnr, adapter, ts_query)
   local query = vim.treesitter.query.get("yaml", "chat")
   local root = parser:parse()[1]:root()
 
-  for _, match in query:iter_matches(root, bufnr, nil, nil, { all = false }) do
-    local value = vim.treesitter.get_node_text(match[1], bufnr)
+  for _, matches, _ in query:iter_matches(root, bufnr) do
+    local nodes = matches[1]
+    local node = type(nodes) == "table" and nodes[1] or nodes
+
+    local value = vim.treesitter.get_node_text(node, bufnr)
 
     settings = yaml.decode(value)
     break
@@ -74,113 +76,48 @@ local function buf_parse_settings(bufnr, adapter, ts_query)
 end
 
 ---Parse the chat buffer for the last message
----@param bufnr integer
+---@param chat CodeCompanion.Chat
+---@param role string
+---@param start_range number
 ---@return table{content: string}
-local function buf_parse_message(bufnr)
-  local parser = vim.treesitter.get_parser(bufnr, "markdown")
+local function ts_parse_messages(chat, role, start_range)
   local query = vim.treesitter.query.get("markdown", "chat")
 
-  local tree = parser:parse()[1]
+  local tree = chat.parser:parse({ start_range - 1, -1 })[1]
   local root = tree:root()
 
-  local last_section = nil
-  local contents = {}
+  local content = {}
+  local last_role = nil
 
-  for id, node in query:iter_captures(root, bufnr, 0, -1) do
-    if query.captures[id] == "content" then
-      last_section = node
-      contents = {}
-    elseif query.captures[id] == "text" and last_section then
-      table.insert(contents, vim.treesitter.get_node_text(node, bufnr))
+  for id, node in query:iter_captures(root, chat.bufnr, start_range - 1, -1) do
+    if query.captures[id] == "role" then
+      last_role = vim.treesitter.get_node_text(node, chat.bufnr)
+    elseif last_role == chat.ui:format_header(user_role) and query.captures[id] == "content" then
+      table.insert(content, vim.treesitter.get_node_text(node, chat.bufnr))
     end
   end
 
-  if #contents > 0 then
-    return { content = vim.trim(table.concat(contents, "\n\n")) }
+  if not vim.tbl_isempty(content) then
+    return { content = vim.trim(table.concat(content, "\n\n")) }
   end
 
-  return {}
-end
-
----@class CodeCompanion.Chat
----@return nil
-local function buf_parse_tools(chat)
-  local assistant_parser = vim.treesitter.get_parser(chat.bufnr, "markdown")
-  local assistant_query = vim.treesitter.query.parse(
-    "markdown",
-    string.format(
-      [[
-(
-  (section
-    (atx_heading) @heading
-    (#match? @heading "## %s")
-  ) @content
-)
-  ]],
-      llm_role
-    )
-  )
-  local assistant_tree = assistant_parser:parse()[1]
-
-  local llm = {}
-  for id, node in assistant_query:iter_captures(assistant_tree:root(), chat.bufnr, 0, -1) do
-    local name = assistant_query.captures[id]
-    if name == "content" then
-      local response = vim.treesitter.get_node_text(node, chat.bufnr)
-      table.insert(llm, response)
-    end
-  end
-
-  -- Only work with the last response from the LLM
-  local response = llm[#llm]
-
-  local parser = vim.treesitter.get_string_parser(response, "markdown")
-  local tree = parser:parse()[1]
-  local query = vim.treesitter.query.parse(
-    "markdown",
-    [[(
- (section
-  (fenced_code_block
-    (info_string) @lang
-    (code_fence_content) @tool
-  ) (#match? @lang "xml"))
-)
-]]
-  )
-
-  local tools = {}
-  for id, node in query:iter_captures(tree:root(), response, 0, -1) do
-    local name = query.captures[id]
-    if name == "tool" then
-      local tool = vim.treesitter.get_node_text(node, response)
-      table.insert(tools, tool)
-    end
-  end
-
-  log:debug("Tool detected: %s", tools)
-
-  if not vim.tbl_isempty(tools) then
-    vim.iter(tools):each(function(t)
-      return chat.tools:setup(chat, t)
-    end)
-  end
+  return { content = "" }
 end
 
 ---Parse the chat buffer for a code block
 ---returns the code block that the cursor is in or the last code block
----@param bufnr integer
+---@param chat CodeCompanion.Chat
 ---@param cursor? table
 ---@return TSNode | nil
-local function buf_find_codeblock(bufnr, cursor)
-  local parser = vim.treesitter.get_parser(bufnr, "markdown")
-  local root = parser:parse()[1]:root()
+local function ts_parse_codeblock(chat, cursor)
+  local root = chat.parser:parse()[1]:root()
   local query = vim.treesitter.query.get("markdown", "chat")
   if query == nil then
     return nil
   end
 
   local last_match = nil
-  for id, node in query:iter_captures(root, bufnr, 0, -1) do
+  for id, node in query:iter_captures(root, chat.bufnr, 0, -1) do
     if query.captures[id] == "code" then
       if cursor then
         local start_row, start_col, end_row, end_col = node:range()
@@ -218,7 +155,8 @@ function Chat.new(args)
   local self = setmetatable({
     opts = args,
     context = args.context,
-    cycle = 0,
+    cycle = 1,
+    header_line = 1,
     from_prompt_library = args.from_prompt_library or false,
     id = id,
     last_role = args.last_role or config.constants.USER_ROLE,
@@ -240,7 +178,15 @@ function Chat.new(args)
   self.aug = api.nvim_create_augroup(CONSTANTS.AUTOCMD_GROUP .. ":" .. self.bufnr, {
     clear = false,
   })
-  self.References = require("codecompanion.strategies.chat.references").new(self)
+
+  local ok, parser = pcall(vim.treesitter.get_parser, self.bufnr, "markdown")
+  if not ok then
+    return log:error("Could not find the markdown Tree-sitter parser")
+  end
+  self.parser = parser
+
+  self.References = require("codecompanion.strategies.chat.references").new({ chat = self })
+  self.watchers = require("codecompanion.strategies.chat.watchers").new()
   self.tools = require("codecompanion.strategies.chat.tools").new({ bufnr = self.bufnr, messages = self.messages })
   self.variables = require("codecompanion.strategies.chat.variables").new()
 
@@ -261,7 +207,7 @@ function Chat.new(args)
     adapter = adapters.make_safe(self.adapter),
   })
   util.fire("ChatModel", { bufnr = self.bufnr, model = self.adapter.schema.model.default })
-  util.fire("ChatOpened", { bufnr = self.bufnr, from_prompt_library = self.from_prompt_library })
+  util.fire("ChatCreated", { bufnr = self.bufnr, from_prompt_library = self.from_prompt_library })
 
   self:apply_settings(self.opts.settings)
 
@@ -277,7 +223,14 @@ function Chat.new(args)
   self.ui:open():render(self.context, self.messages, self.opts):set_extmarks(self.opts)
 
   if config.strategies.chat.keymaps then
-    keymaps.set(config.strategies.chat.keymaps, self.bufnr, self)
+    keymaps
+      .new({
+        bufnr = self.bufnr,
+        callbacks = require("codecompanion.strategies.chat.keymaps"),
+        data = self,
+        keymaps = config.strategies.chat.keymaps,
+      })
+      :set()
   end
 
   self:set_system_prompt():set_autocmds()
@@ -353,7 +306,7 @@ function Chat:set_autocmds()
       buffer = bufnr,
       desc = "Parse the settings in the CodeCompanion chat buffer for any errors",
       callback = function()
-        local settings = buf_parse_settings(bufnr, self.adapter, [[((stream (_)) @block)]])
+        local settings = ts_parse_settings(bufnr, self.adapter)
 
         local errors = schema.validate(self.adapter.schema, settings, self.adapter)
         local node = settings.__ts_node
@@ -426,7 +379,7 @@ function Chat:apply_model(model)
   return self
 end
 
----CodeCompanion models completion source
+---The source to provide the model entries for completion
 ---@param request table
 ---@param callback fun(request: table)
 ---@return nil
@@ -477,6 +430,7 @@ function Chat:set_system_prompt()
       content = prompt,
     }
     system_prompt.id = make_id(system_prompt)
+    system_prompt.cycle = self.cycle
     system_prompt.opts = { visible = false }
     table.insert(self.messages, 1, system_prompt)
   end
@@ -530,19 +484,18 @@ function Chat:add_tool(tool, tool_config)
 
   -- Add the overarching agent system prompt first
   if not self:has_tools() then
-    local id = string.upper(tool) .. " tool"
-
     self:add_message({
       role = config.constants.SYSTEM_ROLE,
-      content = config.strategies.agent.tools.opts.system_prompt,
+      content = config.strategies.chat.agents.tools.opts.system_prompt,
     }, { visible = false, reference = "tool_system_prompt", tag = "tool" })
-
-    self.References:add({
-      source = "tool",
-      name = "tool",
-      id = id,
-    })
   end
+
+  local id = "<tool>" .. tool .. "</tool>"
+  self.References:add({
+    source = "tool",
+    name = "tool",
+    id = id,
+  })
 
   self.tools_in_use[tool] = true
 
@@ -550,7 +503,7 @@ function Chat:add_tool(tool, tool_config)
   if resolved then
     self:add_message(
       { role = config.constants.SYSTEM_ROLE, content = resolved.system_prompt(resolved.schema) },
-      { visible = false, tag = "tool" }
+      { visible = false, tag = "tool", reference = id }
     )
   end
 
@@ -574,6 +527,7 @@ function Chat:add_message(data, opts)
     content = data.content,
   }
   message.id = make_id(message)
+  message.cycle = self.cycle
   message.opts = opts
   if opts.index then
     table.insert(self.messages, opts.index, message)
@@ -619,12 +573,67 @@ end
 ---@param opts? table
 ---@return nil
 function Chat:submit(opts)
+  log:time()
   opts = opts or {}
 
   local bufnr = self.bufnr
 
-  local message = buf_parse_message(bufnr)
-  if not self:has_user_messages(message) then
+  local message = ts_parse_messages(self, user_role, self.header_line)
+
+  for _, ref in ipairs(self.refs) do
+    if ref.bufnr and ref.opts and ref.opts.watched then
+      local changes = self.watchers:get_changes(ref.bufnr)
+      log:debug("Checking watched buffer %d, found %d changes", ref.bufnr, changes and #changes or 0)
+
+      if changes and #changes > 0 then
+        local changes_text = string.format(
+          "Changes detected in `%s` (buffer %d):\n",
+          vim.fn.fnamemodify(api.nvim_buf_get_name(ref.bufnr), ":t"),
+          ref.bufnr
+        )
+
+        for _, change in ipairs(changes) do
+          if change.type == "delete" then
+            changes_text = changes_text
+              .. string.format(
+                "Lines %d-%d were deleted:\n```%s\n%s\n```\n",
+                change.start,
+                change.end_line,
+                vim.bo[ref.bufnr].filetype,
+                table.concat(change.lines, "\n")
+              )
+          elseif change.type == "modify" then
+            changes_text = changes_text
+              .. string.format(
+                "Lines %d-%d were modified from:\n```%s\n%s\n```\nto:\n```%s\n%s\n```\n",
+                change.start,
+                change.end_line,
+                vim.bo[ref.bufnr].filetype,
+                table.concat(change.old_lines, "\n"),
+                vim.bo[ref.bufnr].filetype,
+                table.concat(change.new_lines, "\n")
+              )
+          else -- type == "add"
+            changes_text = changes_text
+              .. string.format(
+                "Lines %d-%d were added:\n```%s\n%s\n```\n",
+                change.start,
+                change.end_line,
+                vim.bo[ref.bufnr].filetype,
+                table.concat(change.lines, "\n")
+              )
+          end
+        end
+
+        self:add_message({
+          role = config.constants.USER_ROLE,
+          content = changes_text,
+        }, { visible = true })
+      end
+    end
+  end
+
+  if not self:has_user_messages(message) or message.content == "" then
     return log:warn("No messages to submit")
   end
 
@@ -636,13 +645,14 @@ function Chat:submit(opts)
 
   self:apply_tools_and_variables(message)
   self:check_references()
+  self:add_pins()
 
-  -- Check if the user has manually overriden the adapter
+  -- Check if the user has manually overridden the adapter
   if vim.g.codecompanion_adapter and self.adapter.name ~= vim.g.codecompanion_adapter then
     self.adapter = adapters.resolve(config.adapters[vim.g.codecompanion_adapter])
   end
 
-  local settings = buf_parse_settings(bufnr, self.adapter)
+  local settings = ts_parse_settings(bufnr, self.adapter)
   settings = self.adapter:map_schema_to_params(settings)
 
   log:debug("Settings:\n%s", settings)
@@ -650,7 +660,10 @@ function Chat:submit(opts)
   log:info("Chat request started")
 
   self.ui:lock_buf()
-  self.cycle = self.cycle + 1
+
+  self:set_range(2) -- this accounts for the LLM header
+  local output = {}
+  log:info("ELAPSED TIME: %s", log:time())
   self.current_request = client
     .new({ adapter = settings })
     :request(self.adapter:map_roles(vim.deepcopy(self.messages)), {
@@ -659,7 +672,7 @@ function Chat:submit(opts)
       callback = function(err, data)
         if err then
           self.status = CONSTANTS.STATUS_ERROR
-          return self:done()
+          return self:done(output)
         end
 
         if data then
@@ -676,33 +689,57 @@ function Chat:submit(opts)
               result.output.role = config.constants.LLM_ROLE
             end
             self.status = CONSTANTS.STATUS_SUCCESS
+            table.insert(output, result.output.content)
             self:add_buf_message(result.output)
           end
         end
       end,
       done = function()
-        self:done()
+        self:done(output)
       end,
     }, { bufnr = bufnr })
 end
 
----After the response from the LLM is received...
+---Increment the cycle count in the chat buffer
 ---@return nil
-function Chat:done()
+function Chat:increment_cycle()
+  self.cycle = self.cycle + 1
+end
+
+---Set the last edited range in the chat buffer
+---@param modifier? number
+---@return nil
+function Chat:set_range(modifier)
+  modifier = modifier or 0
+  self.header_line = api.nvim_buf_line_count(self.bufnr) + modifier
+end
+
+---Method to call after the response from the LLM is received
+---@param output table The output from the LLM
+---@return nil
+function Chat:done(output)
   self.current_request = nil
   if self.status == CONSTANTS.STATUS_CANCELLING then
     self.status = ""
     return self:reset()
   end
 
-  self:add_message({ role = config.constants.LLM_ROLE, content = buf_parse_message(self.bufnr).content })
+  if not vim.tbl_isempty(output) then
+    self:add_message({
+      role = config.constants.LLM_ROLE,
+      content = vim.trim(table.concat(output, "")),
+    })
+  end
 
+  self:increment_cycle()
   self:add_buf_message({ role = config.constants.USER_ROLE, content = "" })
-  self.ui:display_tokens()
+  local assistant_range = self.header_line
+  self:set_range(-2)
+  self.ui:display_tokens(self.parser, self.header_line)
   self.References:render()
 
   if self.status == CONSTANTS.STATUS_SUCCESS and self:has_tools() then
-    buf_parse_tools(self)
+    self.tools:parse_buffer(self, assistant_range, self.header_line - 1)
   end
 
   log:info("Chat request completed")
@@ -717,7 +754,7 @@ function Chat:done()
     end
 
     vim.iter(self.subscribers):each(function(subscriber)
-      if subscriber.order and subscriber.order <= self.cycle then
+      if subscriber.order and subscriber.order < self.cycle then
         action_subscription(subscriber)
       elseif not subscriber.order then
         action_subscription(subscriber)
@@ -727,7 +764,6 @@ function Chat:done()
 end
 
 ---Reconcile the references table to the references in the chat buffer
----This allows users to manually remove references themselves
 ---@return nil
 function Chat:check_references()
   local refs = self.References:get_from_chat()
@@ -762,9 +798,41 @@ function Chat:check_references()
     :totable()
 
   -- And from the refs table
-  for i, ref in pairs(self.refs) do
-    if vim.tbl_contains(to_remove, ref.id) then
-      table.remove(self.refs, i)
+  self.refs = vim
+    .iter(self.refs)
+    :filter(function(ref)
+      return not vim.tbl_contains(to_remove, ref.id)
+    end)
+    :totable()
+end
+
+---Add updated content from the pins to the chat buffer
+---@return nil
+function Chat:add_pins()
+  local pins = vim
+    .iter(self.refs)
+    :filter(function(ref)
+      return ref.opts.pinned
+    end)
+    :totable()
+
+  if vim.tbl_isempty(pins) then
+    return
+  end
+
+  for _, pin in ipairs(pins) do
+    -- Don't add the pin twice in the same cycle
+    local exists = false
+    vim.iter(self.messages):each(function(msg)
+      if msg.opts and msg.opts.reference == pin.id and msg.cycle == self.cycle then
+        exists = true
+      end
+    end)
+    if not exists then
+      util.fire("ChatPin", { bufnr = self.bufnr, id = pin.id })
+      require(pin.source)
+        .new({ Chat = self })
+        :output({ path = pin.path, bufnr = pin.bufnr, params = pin.params }, { pin = true })
     end
   end
 end
@@ -844,7 +912,7 @@ function Chat:add_buf_message(data, opts)
     self.last_role = data.role
     table.insert(lines, "")
     table.insert(lines, "")
-    self.ui:format_header(lines, config.strategies.chat.roles[data.role])
+    self.ui:set_header(lines, config.strategies.chat.roles[data.role])
   end
 
   if data.content then
@@ -923,14 +991,16 @@ end
 ---@return TSNode | nil
 function Chat:get_codeblock()
   local cursor = api.nvim_win_get_cursor(0)
-  return buf_find_codeblock(self.bufnr, cursor)
+  return ts_parse_codeblock(self, cursor)
 end
 
 ---Clear the chat buffer
 ---@return nil
 function Chat:clear()
-  self.refs = {}
+  self.cycle = 1
+  self.header_line = 1
   self.messages = {}
+  self.refs = {}
   self.tools_in_use = {}
 
   log:trace("Clearing chat buffer")
@@ -944,7 +1014,7 @@ function Chat:debug()
     return
   end
 
-  return buf_parse_settings(self.bufnr, self.adapter), self.messages
+  return ts_parse_settings(self.bufnr, self.adapter), self.messages
 end
 
 ---Returns the chat object(s) based on the buffer number

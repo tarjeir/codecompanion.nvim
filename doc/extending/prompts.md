@@ -1,4 +1,4 @@
-# Recipes
+# Creating Prompts
 
 The purpose of this guide is to showcase how you can extend the functionality of CodeCompanion by adding your own prompts to the config that are reflected in the _Action Palette_. The _Action Palette_ is a lua table which is parsed by the plugin and displayed as a `vim.ui.select` component. By specifying certain keys, the behaviour of the table can be customised further.
 
@@ -152,7 +152,7 @@ opts = {
 },
 ```
 
-In the `opts` table we're specifying that we only want this action to appear in the _Action Palette_ if we're in visual mode. We're also asking the chat strategy to automatically submit the prompts to the LLM via the `auto_submit = true` value. We're also telling the picker that we want to get the user's input before we action the response with `user_prompt = true`. With the `short_name = "expert"` option, the user can run `:CodeCompanion /expert` from the cmdline in order to trigger this prompt. Finally, as we define a prompt to add any visually selected text to the chat buffer, we need to add the `stop_context_insertion = true` option to prevent the chat buffer from duplicating this. Remember that visually selcting text and opening a chat buffer will result in that selection from being adding as a codeblock.
+In the `opts` table we're specifying that we only want this action to appear in the _Action Palette_ if we're in visual mode. We're also asking the chat strategy to automatically submit the prompts to the LLM via the `auto_submit = true` value. We're also telling the picker that we want to get the user's input before we action the response with `user_prompt = true`. With the `short_name = "expert"` option, the user can run `:CodeCompanion /expert` from the cmdline in order to trigger this prompt. Finally, as we define a prompt to add any visually selected text to the chat buffer, we need to add the `stop_context_insertion = true` option to prevent the chat buffer from duplicating this. Remember that visually selecting text and opening a chat buffer will result in that selection from being adding as a codeblock.
 
 ### Prompt options and context
 
@@ -236,7 +236,7 @@ Lets now take a look at the second prompt:
 You can see that we're using a handy helper to get the code between two lines and formatting it into a markdown code block.
 
 > [!IMPORTANT]
-> We've also specifed a `contains_code = true` flag. If you've turned off the sending of code to LLMs then the plugin will block this from happening.
+> We've also specified a `contains_code = true` flag. If you've turned off the sending of code to LLMs then the plugin will block this from happening.
 
 ### Conditionals
 
@@ -271,9 +271,9 @@ And to determine the visibility of actions in the palette itself:
 
 ## Other Configuration Options
 
-**Allowing a Prompt to appear as a Slash Command**
+### Allowing a Prompt to appear as a Slash Command
 
-It can be useful to have a prompt from the prompt library appear as a slash command in the chat buffer, like with the `Generate a Commit Message` action. This can be done by specifiying a `is_slash_cmd = true` option to the prompt:
+It can be useful to have a prompt from the prompt library appear as a slash command in the chat buffer, like with the `Generate a Commit Message` action. This can be done by specifying a `is_slash_cmd = true` option to the prompt:
 
 ```lua
 ["Generate a Commit Message"] = {
@@ -294,7 +294,7 @@ It can be useful to have a prompt from the prompt library appear as a slash comm
 
 In the chat buffer, if you type `/` you will see the value of `opts.short_name` appear in the completion menu for you to expand.
 
-**Specifying an Adapter and Model**
+### Specifying an Adapter and Model
 
 ```lua
 ["Your_New_Prompt"] = {
@@ -310,16 +310,16 @@ In the chat buffer, if you type `/` you will see the value of `opts.short_name` 
 }
 ```
 
-**Specifying a Placement for Inline Prompts**
+### Specifying a Placement for Inline Prompts
 
-As outlined in the [README](README.md), an inline prompt can place its response in many different ways. To override this, you can specify a specific placement:
+As outlined in the README, an inline prompt can place its response in many different ways. To override this, you can specify a specific placement:
 
 ```lua
 ["Your_New_Prompt"] = {
   strategy = "inline",
   description = "Your Special Inline Prompt",
   opts = {
-    placement = "new|false"
+    placement = "new"
   },
   -- Your prompts here
 }
@@ -327,7 +327,7 @@ As outlined in the [README](README.md), an inline prompt can place its response 
 
 In this example, the LLM response will be placed in a new buffer and the user's code will not be returned back to them.
 
-**Ignoring the default system prompt**
+### Ignoring the default system prompt
 
 It may also be useful to create custom prompts that do not send the default system prompt with the request:
 
@@ -340,6 +340,55 @@ It may also be useful to create custom prompts that do not send the default syst
   },
   -- Your prompts here
 }
+```
+
+### Prompts with References
+
+It can be useful to pre-load a chat buffer with references to _files_, _symbols_ or even _urls_. This makes conversing with an LLM that much more productive. As per `v11.9.0`, this can now be accomplished, as per the example below:
+
+```lua
+["Test References"] = {
+  strategy = "chat",
+  description = "Add some references",
+  opts = {
+    index = 11,
+    is_default = true,
+    is_slash_cmd = false,
+    short_name = "ref",
+    auto_submit = false,
+  },
+  -- These will appear at the top of the chat buffer
+  references = {
+    {
+      type = "file",
+      path = { -- This can be a string or a table of values
+        "lua/codecompanion/health.lua",
+        "lua/codecompanion/http.lua",
+      },
+    },
+    {
+      type = "file",
+      path = "lua/codecompanion/schema.lua",
+    },
+    {
+      type = "symbols",
+      path = "lua/codecompanion/strategies/chat/init.lua",
+    },
+    {
+      type = "url", -- This URL will even be cached for you!
+      url = "https://raw.githubusercontent.com/olimorris/codecompanion.nvim/refs/heads/main/lua/codecompanion/commands.lua",
+    },
+  },
+  prompts = {
+    {
+      role = "user",
+      content = "I'll think of something clever to put here...",
+      opts = {
+        contains_code = true,
+      },
+    },
+  },
+},
 ```
 
 ## Agentic Workflows
@@ -407,4 +456,5 @@ You'll notice that the comments use the notion of "groups". These are collection
 
 ## Conclusion
 
-Hopefully this serves as a useful introduction on how you can expand CodeCompanion to create prompts that suit your workflow. It's worth checking out the [actions.lua](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/actions.lua) and [config.lua](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua) files for more complex examples.
+Hopefully this serves as a useful introduction on how you can expand CodeCompanion to create prompts that suit your workflow. It's worth checking out [config.lua](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua) files for more complex examples.
+

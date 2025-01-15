@@ -1,5 +1,16 @@
 local log = require("codecompanion.utils.log")
 
+---Prepare data to be parsed as JSON
+---@param data string | { body: string }
+---@return string
+local prepare_data_for_json = function(data)
+  if type(data) == "table" then
+    return data.body
+  end
+  local find_json_start = string.find(data, "{") or 1
+  return string.sub(data, find_json_start)
+end
+
 ---@class OpenAI.Adapter: CodeCompanion.Adapter
 return {
   name = "openai",
@@ -19,10 +30,6 @@ return {
   env = {
     api_key = "OPENAI_API_KEY",
   },
-  raw = {
-    "--no-buffer",
-    "--silent",
-  },
   headers = {
     ["Content-Type"] = "application/json",
     Authorization = "Bearer ${api_key}",
@@ -31,6 +38,12 @@ return {
     ---@param self CodeCompanion.Adapter
     ---@return boolean
     setup = function(self)
+      local model = self.schema.model.default
+      local model_opts = self.schema.model.choices[model]
+      if model_opts and model_opts.opts then
+        self.opts = vim.tbl_deep_extend("force", self.opts, model_opts.opts)
+      end
+
       if self.opts and self.opts.stream then
         self.parameters.stream = true
         self.parameters.stream_options = { include_usage = true }
@@ -79,7 +92,7 @@ return {
     ---@return number|nil
     tokens = function(self, data)
       if data and data ~= "" then
-        local data_mod = (self.opts and self.opts.stream) and data:sub(7) or data.body
+        local data_mod = prepare_data_for_json(data)
         local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
 
         if ok then
@@ -100,7 +113,7 @@ return {
       local output = {}
 
       if data and data ~= "" then
-        local data_mod = (self.opts and self.opts.stream) and data:sub(7) or data.body
+        local data_mod = prepare_data_for_json(data)
         local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
 
         if ok and json.choices and #json.choices > 0 then
@@ -132,12 +145,12 @@ return {
 
     ---Output the data from the API ready for inlining into the current buffer
     ---@param self CodeCompanion.Adapter
-    ---@param data table The streamed JSON data from the API, also formatted by the format_data handler
+    ---@param data string|table The streamed JSON data from the API, also formatted by the format_data handler
     ---@param context table Useful context about the buffer to inline to
     ---@return string|table|nil
     inline_output = function(self, data, context)
       if data and data ~= "" then
-        data = (self.opts and self.opts.stream) and data:sub(7) or data.body
+        data = prepare_data_for_json(data)
         local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
 
         if ok then
@@ -174,7 +187,7 @@ return {
       ---@type string|fun(): string
       default = "gpt-4o",
       choices = {
-        "o1-preview-2024-09-12",
+        ["o1-2024-12-17"] = { opts = { stream = false } },
         "o1-mini-2024-09-12",
         "gpt-4o",
         "gpt-4o-mini",

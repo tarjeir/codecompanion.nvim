@@ -30,16 +30,8 @@ local plugins = {
             ["<Tab>"] = { "select_next", "fallback" },
           },
           sources = {
-            completion = {
-              enabled_providers = { "lsp", "path", "buffer", "codecompanion" },
-            },
-            providers = {
-              codecompanion = {
-                name = "CodeCompanion",
-                module = "codecompanion.providers.completion.blink",
-                enabled = true,
-              },
-            },
+            default = { "lsp", "path", "buffer", "codecompanion" },
+            cmdline = {}, -- Disable sources for command-line mode
           },
         },
       },

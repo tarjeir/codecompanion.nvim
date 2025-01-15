@@ -54,24 +54,6 @@ local function get_models(self, opts)
   return models
 end
 
-local function get_url(self, opts)
-  local adapter = require("codecompanion.adapters").resolve(self)
-  local url = adapter.env_replaced.url
-  if not adapter.env_replaced.url then
-    url = "http://localhost:11434"
-  end
-  return url
-end
-
-local function get_completion_url(self, opts)
-  local adapter = require("codecompanion.adapters").resolve(self)
-  local url = adapter.env_replaced.chat_url
-  if not adapter.env_replaced.chat_url then
-    url = "/v1/chat/completions"
-  end
-  return url
-end
-
 ---@class OpenAICompatible.Adapter: CodeCompanion.Adapter
 return {
   name = "openai_compatible",
@@ -90,16 +72,8 @@ return {
   url = "${url}${chat_url}",
   env = {
     api_key = "OPENAI_API_KEY",
-    url = function(self)
-      return get_url(self)
-    end,
-    chat_url = function(self)
-      return get_completion_url(self)
-    end,
-  },
-  raw = {
-    "--no-buffer",
-    "--silent",
+    url = "http://localhost:11434",
+    chat_url = "/v1/chat/completions",
   },
   headers = {
     ["Content-Type"] = "application/json",

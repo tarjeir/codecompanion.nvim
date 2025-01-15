@@ -1,7 +1,6 @@
+local async = require("plenary.async")
 local completion = require("codecompanion.completion")
 local config = require("codecompanion.config")
-
-local async = require("plenary.async")
 local ts = require("codecompanion.utils.treesitter")
 local ui = require("codecompanion.utils.ui")
 local util = require("codecompanion.utils")
@@ -9,18 +8,6 @@ local util = require("codecompanion.utils")
 local api = vim.api
 
 local M = {}
-
----Clear a keymap from a specific buffer
----@param keymaps table
----@param bufnr? integer
-local function clear_map(keymaps, bufnr)
-  bufnr = bufnr or 0
-  for _, map in pairs(keymaps) do
-    for _, key in pairs(map.modes) do
-      vim.keymap.del("n", key, { buffer = bufnr })
-    end
-  end
-end
 
 ---Open a floating window with the provided lines
 ---@param lines table
@@ -104,7 +91,7 @@ M.options = {
     local vars = config.strategies.chat.variables
     local vars_max = max("key", vars)
 
-    local tools = config.strategies.agent.tools
+    local tools = config.strategies.chat.agents.tools
     local tools_max = max("key", tools)
 
     local max_length = math.max(keymaps_max, vars_max, tools_max)
@@ -219,7 +206,10 @@ M.completion = {
         return
       end
 
-      local prefix, start = unpack(vim.fn.matchstrpos(line:sub(1, col), [[\%(@\|/\|#\|\$\)\S*]]))
+      local before_cursor = line:sub(1, col)
+      local find_current_word = string.find(before_cursor, "%s[^%s]*$")
+      local start = find_current_word or 0
+      local prefix = line:sub(start + 1, col)
       if not prefix then
         return
       end
@@ -337,6 +327,97 @@ M.add_search_domain = {
         vim.print(vim.inspect(chat.adapter))
       end
     end)
+
+M.pin_reference = {
+  desc = "Pin Reference",
+  callback = function(chat)
+    local current_line = vim.api.nvim_win_get_cursor(0)[1]
+    local line = vim.api.nvim_buf_get_lines(chat.bufnr, current_line - 1, current_line, true)[1]
+
+    if not vim.startswith(line, "> - ") then
+      return
+    end
+
+    local icon = config.display.chat.icons.pinned_buffer
+    local id = line:gsub("^> %- ", "")
+
+    if not chat.References:can_be_pinned(id) then
+      return util.notify("This reference type cannot be pinned", vim.log.levels.WARN)
+    end
+
+    local filename = id
+    local state = "unpinned"
+    if line:find(icon) then
+      state = "pinned"
+      filename = filename:gsub(icon, "")
+      id = filename
+    end
+
+    -- Update the UI
+    local new_line = (state == "pinned") and string.format("> - %s", filename)
+      or string.format("> - %s%s", icon, filename)
+    api.nvim_buf_set_lines(chat.bufnr, current_line - 1, current_line, true, { new_line })
+
+    -- Update the references on the chat buffer
+    for _, ref in ipairs(chat.refs) do
+      if ref.id == id then
+        ref.opts.pinned = not ref.opts.pinned
+        break
+      end
+    end
+  end,
+}
+
+M.toggle_watch = {
+  desc = "Toggle Watch Buffer",
+  callback = function(chat)
+    local current_line = vim.api.nvim_win_get_cursor(0)[1]
+    local line = vim.api.nvim_buf_get_lines(chat.bufnr, current_line - 1, current_line, true)[1]
+
+    if not vim.startswith(line, "> - ") then
+      return
+    end
+
+    local icons = config.display.chat.icons
+    local id = line:gsub("^> %- ", "")
+    if not chat.References:can_be_watched(id) then
+      return util.notify("This reference type cannot be watched", vim.log.levels.WARN)
+    end
+
+    -- Find the reference and toggle watch state
+    for _, ref in ipairs(chat.refs) do
+      local clean_id = id:gsub(icons.pinned_buffer, ""):gsub(icons.watched_buffer, "")
+      if ref.id == clean_id then
+        if not ref.opts then
+          ref.opts = {}
+        end
+        ref.opts.watched = not ref.opts.watched
+
+        -- Update the UI for just this line
+        local new_line
+        if ref.opts.watched then
+          -- Check if buffer is still valid before watching
+          if vim.api.nvim_buf_is_valid(ref.bufnr) and vim.api.nvim_buf_is_loaded(ref.bufnr) then
+            chat.watchers:watch(ref.bufnr)
+            new_line = string.format("> - %s%s", icons.watched_buffer, clean_id)
+            util.notify("Now watching buffer " .. ref.id)
+          else
+            -- Buffer is invalid, can't watch it
+            ref.opts.watched = false
+            new_line = string.format("> - %s", clean_id)
+            util.notify("Cannot watch invalid or unloaded buffer " .. ref.id, vim.log.levels.WARN)
+          end
+        else
+          chat.watchers:unwatch(ref.bufnr)
+          new_line = string.format("> - %s", clean_id)
+          util.notify("Stopped watching buffer " .. ref.id)
+        end
+
+        -- Update only the current line
+        vim.api.nvim_buf_set_lines(chat.bufnr, current_line - 1, current_line, true, { new_line })
+        break
+      end
+    end
   end,
 }
 
@@ -440,14 +521,17 @@ M.change_adapter = {
 
       if current_adapter ~= selected then
         chat.adapter = require("codecompanion.adapters").resolve(adapters[selected])
-        util.fire("ChatAdapter", { bufnr = chat.bufnr, adapter = chat.adapter })
+        util.fire(
+          "ChatAdapter",
+          { bufnr = chat.bufnr, adapter = require("codecompanion.adapters").make_safe(chat.adapter) }
+        )
         chat:apply_settings()
       end
 
       -- Update the system prompt
       local system_prompt = config.opts.system_prompt
       if type(system_prompt) == "function" then
-        if chat.messages[1].role == "system" then
+        if chat.messages[1] and chat.messages[1].role == "system" then
           chat.messages[1].content = system_prompt(chat.adapter)
         end
       end
@@ -549,28 +633,6 @@ M.toggle_system_prompt = {
   desc = "Toggle the system prompt",
   callback = function(chat)
     chat:toggle_system_prompt()
-  end,
-}
-
--- INLINE MAPPINGS ------------------------------------------------------------
-
-M.accept_change = {
-  desc = "Accept the change from the LLM",
-  callback = function(inline)
-    if inline.diff then
-      inline.diff:accept()
-      clear_map(config.strategies.inline.keymaps, inline.diff.bufnr)
-    end
-  end,
-}
-
-M.reject_change = {
-  desc = "Reject the change from the LLM",
-  callback = function(inline)
-    if inline.diff then
-      inline.diff:reject()
-      clear_map(config.strategies.inline.keymaps, inline.diff.bufnr)
-    end
   end,
 }
 
