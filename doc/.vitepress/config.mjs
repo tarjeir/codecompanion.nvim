@@ -1,28 +1,43 @@
 import { defineConfig } from "vitepress";
 import { execSync } from "node:child_process";
 
-const version = "Main";
-if (process.env.IS_RELEASE === "true") {
-  const version = execSync("git describe --tags --abbrev=0", {
-    encoding: "utf-8",
-  }).trim();
+const inProd = process.env.NODE_ENV === "production";
+
+let version = "Main";
+if (inProd) {
+  try {
+    version = execSync("git describe --tags --abbrev=0", {
+      encoding: "utf-8",
+    }).trim();
+  } catch (error) {
+    console.warn("Failed to get git version, using default.");
+  }
 }
-const isMain = process.env.IS_RELEASE !== "true";
+
+const baseHeaders = [];
+const umamiScript = [
+  "script",
+  {
+    defer: "true",
+    src: "https://cloud.umami.is/script.js",
+    "data-website-id": "6fb6c149-1aba-4531-b613-7fc54d42191a",
+  },
+];
+const headers = inProd ? [baseHeaders, umamiScript] : baseHeaders;
 
 const siteUrl = "https://codecompanion.olimorris.dev";
 
-const title = isMain ? "Main" : version;
-const otherTitle = isMain ? version : "Main";
-
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  title: "CodeCompanion.nvim",
+  title: "CodeCompanion",
   description: "AI-powered coding, seamlessly in Neovim",
+  head: headers,
   sitemap: { hostname: siteUrl },
   themeConfig: {
+    logo: "https://github.com/user-attachments/assets/825fc040-9bc8-4743-be2a-71e257f8a7be",
     nav: [
       {
-        text: `${title}`,
+        text: `${version}`,
         items: [
           {
             text: "Changelog",
@@ -38,8 +53,8 @@ export default defineConfig({
 
     sidebar: [
       { text: "Introduction", link: "/" },
-      { text: "Installation", link: "installation" },
-      { text: "Getting Started", link: "getting-started" },
+      { text: "Installation", link: "/installation" },
+      { text: "Getting Started", link: "/getting-started" },
       {
         text: "Configuration",
         collapsed: true,
@@ -62,7 +77,7 @@ export default defineConfig({
           { text: "Action Palette", link: "/usage/action-palette" },
           {
             text: "Chat Buffer",
-            link: "/usage/chat-buffer",
+            link: "/usage/chat-buffer/",
             collapsed: true,
             items: [
               { text: "Agents/Tools", link: "/usage/chat-buffer/agents" },
@@ -76,7 +91,6 @@ export default defineConfig({
           { text: "Events", link: "/usage/events" },
           { text: "Inline Assistant", link: "/usage/inline-assistant" },
           { text: "Workflows", link: "/usage/workflows" },
-          { text: "Others", link: "/usage/others" },
         ],
       },
       {
@@ -86,6 +100,7 @@ export default defineConfig({
           { text: "Creating Adapters", link: "/extending/adapters" },
           { text: "Creating Prompts", link: "/extending/prompts" },
           { text: "Creating Tools", link: "/extending/tools" },
+          { text: "Creating Workspaces", link: "/extending/workspace" },
         ],
       },
     ],

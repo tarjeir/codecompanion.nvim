@@ -43,7 +43,7 @@ local function output(chat, data, opts)
     content = format_output(data.url, data.content),
   }, { reference = id, visible = false })
 
-  chat.References:add({
+  chat.references:add({
     source = "slash_command",
     name = "fetch",
     id = id,
@@ -117,14 +117,14 @@ local function fetch(chat, adapter, url, opts)
         end
 
         if data then
-          local ok, body = pcall(vim.fn.json_decode, data.body)
+          local ok, body = pcall(vim.json.decode, data.body)
           if not ok then
             return log:error("Could not parse the JSON response")
           end
           if data.status == 200 then
             write_cache(util_hash.hash(url), body.data.text)
             return output(chat, {
-              content = format_output(url, body.data.text),
+              content = body.data.text,
               url = url,
             }, opts)
           else

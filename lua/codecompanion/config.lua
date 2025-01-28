@@ -12,7 +12,9 @@ local defaults = {
     anthropic = "anthropic",
     azure_openai = "azure_openai",
     copilot = "copilot",
+    deepseek = "deepseek",
     gemini = "gemini",
+    huggingface = "huggingface",
     ollama = "ollama",
     openai = "openai",
     xai = "xai",
@@ -176,6 +178,13 @@ Points to note:
           description = "Insert terminal output",
           opts = {
             contains_code = false,
+          },
+        },
+        ["workspace"] = {
+          callback = "strategies.chat.slash_commands.workspace",
+          description = "Load a workspace file",
+          opts = {
+            contains_code = true,
           },
         },
       },

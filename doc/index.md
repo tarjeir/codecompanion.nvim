@@ -1,15 +1,24 @@
+---
+prev: false
+next:
+  text: 'Installation'
+  link: '/installation'
+---
+
 # Welcome to CodeCompanion.nvim
 
 > AI-powered coding, seamlessly in _Neovim_
 
 CodeCompanion is a productivity tool which streamlines how you develop with LLMs, in Neovim.
 
+<p>
 <video controls autoplay muted src="https://github.com/user-attachments/assets/04a2bed3-7af0-4c07-b58f-f644cef1c4bb"></video>
+</p>
 
 ## Features
 
 - :speech_balloon: [Copilot Chat](https://github.com/features/copilot) meets [Zed AI](https://zed.dev/blog/zed-ai), in Neovim
-- :electric_plug: Support for Anthropic, Copilot, Gemini, Ollama, OpenAI, Azure OpenAI, HuggingFace and xAI LLMs (or bring your own!)
+- :electric_plug: Support for Anthropic, Copilot, DeepSeek, Gemini, Ollama, OpenAI, Azure OpenAI, HuggingFace and xAI LLMs (or bring your own!)
 - :rocket: Inline transformations, code creation and refactoring
 - :robot: Variables, Slash Commands, Agents/Tools and Workflows to improve LLM output
 - :sparkles: Built in prompt library for common tasks like advice on LSP errors and code explanations
@@ -23,6 +32,7 @@ The plugin uses [adapters](configuration/adapters) to connect to LLMs. Out of th
 
 - Anthropic (`anthropic`) - Requires an API key and supports [prompt caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
 - Copilot (`copilot`) - Requires a token which is created via `:Copilot setup` in [Copilot.vim](https://github.com/github/copilot.vim)
+- DeepSeek (`deepseek`) - Requires an API key
 - Gemini (`gemini`) - Requires an API key
 - HuggingFace (`huggingface`) - Requires an API key
 - Ollama (`ollama`) - Both local and remotely hosted

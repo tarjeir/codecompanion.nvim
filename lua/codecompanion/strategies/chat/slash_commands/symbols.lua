@@ -1,15 +1,37 @@
-local path = require("plenary.path")
+--[[
+Uses Tree-sitter to parse a given file and extract symbol types and names. Then
+displays those symbols in the chat buffer as references. To support tools
+and agents, start and end lines for the symbols are also output.
 
+Heavily modified from the awesome Aerial.nvim plugin by stevearc:
+https://github.com/stevearc/aerial.nvim/blob/master/lua/aerial/backends/treesitter/init.lua
+--]]
 local config = require("codecompanion.config")
 local log = require("codecompanion.utils.log")
+local path = require("plenary.path")
 local util = require("codecompanion.utils")
 
 local fmt = string.format
+local get_node_text = vim.treesitter.get_node_text --[[@type function]]
 
 CONSTANTS = {
   NAME = "Symbols",
   PROMPT = "Select symbol(s)",
 }
+
+---Get the range of two nodes
+---@param start_node TSNode
+---@param end_node TSNode
+local function range_from_nodes(start_node, end_node)
+  local row, col = start_node:start()
+  local end_row, end_col = end_node:end_()
+  return {
+    lnum = row + 1,
+    end_lnum = end_row + 1,
+    col = col,
+    end_col = end_col,
+  }
+end
 
 ---Return when no symbols query exists
 local function no_query(ft)
@@ -42,6 +64,28 @@ local providers = {
       :display()
   end,
 
+  ---The Snacks.nvim provider
+  ---@param SlashCommand CodeCompanion.SlashCommand
+  ---@return nil
+  snacks = function(SlashCommand)
+    local snacks = require("codecompanion.providers.slash_commands.snacks")
+    snacks = snacks.new({
+      title = CONSTANTS.PROMPT .. ": ",
+      output = function(selection)
+        return SlashCommand:output({
+          relative_path = selection.file,
+          path = vim.fs.joinpath(selection.cwd, selection.file),
+        })
+      end,
+    })
+
+    snacks.provider.picker.pick({
+      source = "files",
+      prompt = snacks.title,
+      confirm = snacks:display(),
+    })
+  end,
+
   ---The Telescope provider
   ---@param SlashCommand CodeCompanion.SlashCommand
   ---@return nil
@@ -50,7 +94,10 @@ local providers = {
     telescope = telescope.new({
       title = CONSTANTS.PROMPT,
       output = function(selection)
-        return SlashCommand:output({ relative_path = selection[1], path = selection.path })
+        return SlashCommand:output({
+          relative_path = selection[1],
+          path = selection.path,
+        })
       end,
     })
 
@@ -140,6 +187,18 @@ function SlashCommand:output(selected, opts)
   opts = opts or {}
 
   local ft = vim.filetype.match({ filename = selected.path })
+  -- weird TypeScript bug for vim.filetype.match
+  -- see: https://github.com/neovim/neovim/issues/27265
+  if not ft then
+    local base_name = vim.fs.basename(selected.path)
+    local split_name = vim.split(base_name, "%.")
+    if #split_name > 1 then
+      local ext = split_name[#split_name]
+      if ext == "ts" then
+        ft = "typescript"
+      end
+    end
+  end
   local content = path.new(selected.path):read()
 
   local query = vim.treesitter.query.get(ft, "symbols")
@@ -150,10 +209,6 @@ function SlashCommand:output(selected, opts)
 
   local parser = vim.treesitter.get_string_parser(content, ft)
   local tree = parser:parse()[1]
-
-  local function get_ts_node(output_tbl, type, match)
-    table.insert(output_tbl, fmt(" - %s %s", type, vim.trim(vim.treesitter.get_node_text(match.node, content))))
-  end
 
   local symbols = {}
   for _, matches, metadata in query:iter_matches(tree:root(), content) do
@@ -168,18 +223,25 @@ function SlashCommand:output(selected, opts)
       })
     end
 
-    local symbol_node = (match.symbol or {}).node
+    local name_match = match.name or {}
+    local symbol_node = (match.symbol or match.type or {}).node
 
     if not symbol_node then
       goto continue
     end
 
-    local name_match = match.name or {}
+    local start_node = (match.start or {}).node or symbol_node
+    local end_node = (match["end"] or {}).node or start_node
+
     local kind = match.kind
 
     local kinds = {
+      "Import",
+      "Enum",
       "Module",
       "Class",
+      "Struct",
+      "Interface",
       "Method",
       "Function",
     }
@@ -190,7 +252,12 @@ function SlashCommand:output(selected, opts)
         return kind == k
       end)
       :each(function(k)
-        get_ts_node(symbols, k:lower(), name_match)
+        local range = range_from_nodes(start_node, end_node)
+        if name_match.node then
+          local name = vim.trim(get_node_text(name_match.node, content)) or "<parse error>"
+
+          table.insert(symbols, fmt("- %s: `%s` (from line %s to %s)", k:lower(), name, range.lnum, range.end_lnum))
+        end
       end)
 
     ::continue::
@@ -203,21 +270,39 @@ function SlashCommand:output(selected, opts)
   local id = "<symbols>" .. (selected.relative_path or selected.path) .. "</symbols>"
   content = table.concat(symbols, "\n")
 
-  self.Chat:add_message({
-    role = config.constants.USER_ROLE,
-    content = fmt(
-      [[Here is a symbolic outline of the file `%s` with filetype `%s`:
+  -- Workspaces allow the user to set their own custom description which should take priority
+  local description
+  if selected.description then
+    description = fmt(
+      [[%s
 
-<symbols>
+```%s
 %s
-</symbols>]],
+```]],
+      selected.description,
+      ft,
+      content
+    )
+  else
+    description = fmt(
+      [[Here is a symbolic outline of the file `%s` (with filetype `%s`). I've also included the line numbers that each symbol starts and ends on in the file:
+
+%s
+
+Prompt the user if you need to see more than the symbolic outline.
+]],
       selected.relative_path or selected.path,
       ft,
       content
-    ),
+    )
+  end
+
+  self.Chat:add_message({
+    role = config.constants.USER_ROLE,
+    content = description,
   }, { reference = id, visible = false })
 
-  self.Chat.References:add({
+  self.Chat.references:add({
     source = "slash_command",
     name = "symbols",
     id = id,

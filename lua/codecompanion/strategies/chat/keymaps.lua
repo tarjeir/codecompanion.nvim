@@ -343,7 +343,7 @@ M.pin_reference = {
     local icon = config.display.chat.icons.pinned_buffer
     local id = line:gsub("^> %- ", "")
 
-    if not chat.References:can_be_pinned(id) then
+    if not chat.references:can_be_pinned(id) then
       return util.notify("This reference type cannot be pinned", vim.log.levels.WARN)
     end
 
@@ -382,7 +382,7 @@ M.toggle_watch = {
 
     local icons = config.display.chat.icons
     local id = line:gsub("^> %- ", "")
-    if not chat.References:can_be_watched(id) then
+    if not chat.references:can_be_watched(id) then
       return util.notify("This reference type cannot be watched", vim.log.levels.WARN)
     end
 
@@ -483,7 +483,7 @@ M.change_adapter = {
   desc = "Change the adapter",
   callback = function(chat)
     if config.display.chat.show_settings then
-      return
+      return util.notify("Adapter can't be changed when `display.chat.show_settings = true`", vim.log.levels.WARN)
     end
 
     local function select_opts(prompt, conditional)
@@ -543,7 +543,7 @@ M.change_adapter = {
       if type(models) == "function" then
         models = models(chat.adapter)
       end
-      if not models or #models < 2 then
+      if not models or vim.tbl_count(models) < 2 then
         return
       end
 
