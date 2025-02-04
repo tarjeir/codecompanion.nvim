@@ -146,10 +146,24 @@ You can change the appearance of the chat buffer by changing the `display.chat.w
 require("codecompanion").setup({
   display = {
     chat = {
+      -- Change the default icons
+      icons = {
+        pinned_buffer = " ",
+        watched_buffer = "👀 ",
+      },
+
+      -- Alter the sizing of the debug window
+      debug_window = {
+        ---@return number|fun(): number
+        width = vim.o.columns - 5,
+        ---@return number|fun(): number
+        height = vim.o.lines - 2,
+      },
+
       -- Options to customize the UI of the chat buffer
       window = {
         layout = "vertical", -- float|vertical|horizontal|buffer
-        position = nil, -- left|right|top|bottom (nil will default depending on vim.opt.splitright|vim.opt.splitbelow)
+        position = nil, -- left|right|top|bottom (nil will default depending on vim.opt.plitright|vim.opt.splitbelow)
         border = "single",
         height = 0.8,
         width = 0.45,
@@ -176,7 +190,7 @@ require("codecompanion").setup({
         return " (" .. tokens .. " tokens)"
       end,
     },
-  }
+  },
 }),
 ```
 
@@ -192,20 +206,48 @@ There are a number of diff settings available to you:
 ```lua
 require("codecompanion").setup({
   display = {
-    chat = {
-      diff = {
-        enabled = true,
-        close_chat_at = 240, -- Close an open chat buffer if the total columns of your display are less than...
-        layout = "vertical", -- vertical|horizontal split for default provider
-        opts = { "internal", "filler", "closeoff", "algorithm:patience", "followwrap", "linematch:120" },
-        provider = "default", -- default|mini_diff
-      },
+    diff = {
+      enabled = true,
+      close_chat_at = 240, -- Close an open chat buffer if the total columns of your display are less than...
+      layout = "vertical", -- vertical|horizontal split for default provider
+      opts = { "internal", "filler", "closeoff", "algorithm:patience", "followwrap", "linematch:120" },
+      provider = "default", -- default|mini_diff
     },
   },
 }),
 ```
 
 ## UI
+
+### User and LLM Roles
+
+The chat buffer places user and LLM responses under a `H2` header. These can be customized in the configuration:
+
+```lua
+require("codecompanion").setup({
+  strategies = {
+    chat = {
+      roles = {
+        ---The header name for the LLM's messages
+        ---@type string|fun(adapter: CodeCompanion.Adapter): string
+        llm = function(adapter)
+          return "CodeCompanion (" .. adapter.formatted_name .. ")"
+        end,
+
+        ---The header name for your messages
+        ---@type string
+        user = "Me",
+      }
+    }
+  }
+})
+```
+
+By default, the LLM's responses will be placed under a header such as `CodeCompanion (DeepSeek)`, leveraging the current adapter in the chat buffer. This option can be in the form of a string or a function that returns a string. If you opt for a function, the first parameter will always be the adapter from the chat buffer.
+
+The user role is currently only available as a string.
+
+### Markdown Rendering
 
 As the Chat Buffer uses markdown as its syntax, you can use popular rendering plugins to improve the UI:
 
@@ -223,10 +265,12 @@ As the Chat Buffer uses markdown as its syntax, you can use popular rendering pl
 ```lua
 {
   "OXY2DEV/markview.nvim",
-  ft = { "markdown", "codecompanion" },
+  lazy = false,
   opts = {
-    filetypes = { "markdown", "codecompanion" },
-    buf_ignore = {},
+    preview = {
+      filetypes = { "markdown", "codecompanion" },
+      ignore_buftypes = {},
+    },
   },
 },
 ```

@@ -165,6 +165,14 @@ function Client:request(payload, actions, opts)
 
   local job = self.opts[request](request_opts)
 
+  -- Data to be sent via the request
+  opts.id = math.random(10000000)
+  opts.adapter = {
+    name = adapter.name,
+    formatted_name = adapter.formatted_name,
+    model = adapter.schema.model.default,
+  }
+
   util.fire("RequestStarted", opts)
 
   if job and job.args then

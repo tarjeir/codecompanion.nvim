@@ -87,11 +87,11 @@ local function replace_var(adapter, str)
 end
 
 ---@class CodeCompanion.Adapter
----@field args CodeCompanion.Adapter
 local Adapter = {}
 
 ---@class CodeCompanion.Adapter
 ---@field name string The name of the adapter
+---@field formatted_name string The formatted name of the adapter
 ---@field roles table The mapping of roles in the config to the LLM's defined roles
 ---@field features table The features that the adapter supports
 ---@field url string The URL of the generative AI service to connect to
@@ -114,16 +114,14 @@ local Adapter = {}
 ---@field handlers.teardown? fun(self: CodeCompanion.Adapter): any
 ---@field schema table Set of parameters for the generative AI service that the user can customise in the chat buffer
 
----@param args CodeCompanion.Adapter
 ---@return CodeCompanion.Adapter
 function Adapter.new(args)
   return setmetatable(args, { __index = Adapter })
 end
 
----TODO: Refactor this to return self so we can chain it
 ---Get the default settings from the schema
 ---@return table
-function Adapter:get_default_settings()
+function Adapter:make_from_schema()
   local settings = {}
 
   for key, value in pairs(self.schema) do
@@ -162,7 +160,7 @@ function Adapter:get_env_vars()
     elseif type(v) == "string" and is_env_var(v) then
       self.env_replaced[k] = get_env_var(v)
     elseif type(v) == "function" then
-      self.env_replaced[k] = v()
+      self.env_replaced[k] = v(self)
     else
       local schema = get_schema(self, v)
       if schema then
@@ -189,6 +187,8 @@ function Adapter:set_env_vars(object)
     for k, v in pairs(obj_copy) do
       if type(v) == "string" then
         replaced[k] = replace_var(self, v)
+      elseif type(v) == "function" then
+        replaced[k] = replace_var(self, v(self))
       else
         replaced[k] = v
       end
@@ -201,9 +201,7 @@ end
 ---@param settings? table
 ---@return CodeCompanion.Adapter
 function Adapter:map_schema_to_params(settings)
-  if not settings then
-    settings = self:get_default_settings()
-  end
+  settings = settings or self:make_from_schema()
 
   for k, v in pairs(settings) do
     local mapping = self.schema[k] and self.schema[k].mapping

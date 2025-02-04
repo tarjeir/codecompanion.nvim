@@ -1,7 +1,7 @@
 local config = require("codecompanion.config")
 local curl = require("plenary.curl")
 local log = require("codecompanion.utils.log")
-local utils = require("codecompanion.utils.messages")
+local utils = require("codecompanion.utils.adapters")
 
 ---Get a list of available Ollama models
 ---@params self CodeCompanion.Adapter
@@ -57,6 +57,7 @@ end
 ---@class Ollama.Adapter: CodeCompanion.Adapter
 return {
   name = "ollama",
+  formatted_name = "Ollama",
   roles = {
     llm = "assistant",
     user = "user",
@@ -122,10 +123,7 @@ return {
         local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
 
         if not ok then
-          return {
-            status = "error",
-            output = string.format("Error malformed json: %s", json),
-          }
+          return { status = "error" }
         end
 
         local message = json.message
@@ -134,8 +132,6 @@ return {
           output.content = message.content
           output.role = message.role or nil
         end
-
-        -- log:trace("----- For Adapter test creation -----\nOutput: %s\n ---------- // END ----------", output)
 
         return {
           status = "success",

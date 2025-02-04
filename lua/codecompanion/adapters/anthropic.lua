@@ -1,5 +1,6 @@
 local log = require("codecompanion.utils.log")
 local tokens = require("codecompanion.utils.tokens")
+local utils = require("codecompanion.utils.adapters")
 
 local input_tokens = 0
 local output_tokens = 0
@@ -7,6 +8,7 @@ local output_tokens = 0
 ---@class Anthropic.Adapter: CodeCompanion.Adapter
 return {
   name = "anthropic",
+  formatted_name = "Anthropic",
   roles = {
     llm = "assistant",
     user = "user",
@@ -63,27 +65,15 @@ return {
           }
         end)
         :totable()
-
       system = next(system) and system or nil
 
-      -- Remove system messages from the messages table
-      messages = vim
+      -- Remove system messages and merge user/assistant messages
+      messages = utils.merge_messages(vim
         .iter(messages)
         :filter(function(msg)
           return msg.role ~= "system"
         end)
-        :totable()
-
-      -- Combine consecutive messages from the same role
-      messages = vim.iter(messages):fold({}, function(acc, msg)
-        local last = acc[#acc]
-        if last and last.role == msg.role then
-          last.content = last.content .. " " .. msg.content:gsub("^%s*\n\n", "")
-        else
-          table.insert(acc, { role = msg.role, content = msg.content })
-        end
-        return acc
-      end)
+        :totable())
 
       local breakpoints_used = 0
 
@@ -160,8 +150,8 @@ return {
       end
 
       if data and data ~= "" then
-        data = data:sub(6)
-        local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
+        local data_mod = utils.clean_streamed_data(data)
+        local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
 
         if ok then
           if json.type == "message_start" then

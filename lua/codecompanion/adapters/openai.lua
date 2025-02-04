@@ -1,19 +1,10 @@
 local log = require("codecompanion.utils.log")
-
----Prepare data to be parsed as JSON
----@param data string | { body: string }
----@return string
-local prepare_data_for_json = function(data)
-  if type(data) == "table" then
-    return data.body
-  end
-  local find_json_start = string.find(data, "{") or 1
-  return string.sub(data, find_json_start)
-end
+local utils = require("codecompanion.utils.adapters")
 
 ---@class OpenAI.Adapter: CodeCompanion.Adapter
 return {
   name = "openai",
+  formatted_name = "OpenAI",
   roles = {
     llm = "assistant",
     user = "user",
@@ -92,7 +83,7 @@ return {
     ---@return number|nil
     tokens = function(self, data)
       if data and data ~= "" then
-        local data_mod = prepare_data_for_json(data)
+        local data_mod = utils.clean_streamed_data(data)
         local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
 
         if ok then
@@ -113,7 +104,7 @@ return {
       local output = {}
 
       if data and data ~= "" then
-        local data_mod = prepare_data_for_json(data)
+        local data_mod = utils.clean_streamed_data(data)
         local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
 
         if ok and json.choices and #json.choices > 0 then
@@ -150,7 +141,7 @@ return {
     ---@return string|table|nil
     inline_output = function(self, data, context)
       if data and data ~= "" then
-        data = prepare_data_for_json(data)
+        data = utils.clean_streamed_data(data)
         local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
 
         if ok then
@@ -187,8 +178,9 @@ return {
       ---@type string|fun(): string
       default = "gpt-4o",
       choices = {
-        ["o1-2024-12-17"] = { opts = { stream = false } },
-        "o1-mini-2024-09-12",
+        ["o3-mini-2025-01-31"] = { opts = { can_reason = true } },
+        ["o1-2024-12-17"] = { opts = { stream = true } },
+        ["o1-mini-2024-09-12"] = { opts = { can_reason = true } },
         "gpt-4o",
         "gpt-4o-mini",
         "gpt-4-turbo-preview",
@@ -196,8 +188,30 @@ return {
         "gpt-3.5-turbo",
       },
     },
-    temperature = {
+    reasoning_effort = {
       order = 2,
+      mapping = "parameters",
+      type = "string",
+      optional = true,
+      condition = function(schema)
+        local model = schema.model.default
+        if type(model) == "function" then
+          model = model()
+        end
+        if schema.model.choices[model] and schema.model.choices[model].opts then
+          return schema.model.choices[model].opts.can_reason
+        end
+      end,
+      default = "medium",
+      desc = "Constrains effort on reasoning for reasoning models. Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response.",
+      choices = {
+        "high",
+        "medium",
+        "low",
+      },
+    },
+    temperature = {
+      order = 3,
       mapping = "parameters",
       type = "number",
       optional = true,
@@ -208,7 +222,7 @@ return {
       end,
     },
     top_p = {
-      order = 3,
+      order = 4,
       mapping = "parameters",
       type = "number",
       optional = true,
@@ -219,7 +233,7 @@ return {
       end,
     },
     stop = {
-      order = 4,
+      order = 5,
       mapping = "parameters",
       type = "list",
       optional = true,
@@ -233,7 +247,7 @@ return {
       end,
     },
     max_tokens = {
-      order = 5,
+      order = 6,
       mapping = "parameters",
       type = "integer",
       optional = true,
@@ -244,7 +258,7 @@ return {
       end,
     },
     presence_penalty = {
-      order = 6,
+      order = 7,
       mapping = "parameters",
       type = "number",
       optional = true,
@@ -255,7 +269,7 @@ return {
       end,
     },
     frequency_penalty = {
-      order = 7,
+      order = 8,
       mapping = "parameters",
       type = "number",
       optional = true,
@@ -266,7 +280,7 @@ return {
       end,
     },
     logit_bias = {
-      order = 8,
+      order = 9,
       mapping = "parameters",
       type = "map",
       optional = true,
@@ -283,7 +297,7 @@ return {
       },
     },
     user = {
-      order = 9,
+      order = 10,
       mapping = "parameters",
       type = "string",
       optional = true,

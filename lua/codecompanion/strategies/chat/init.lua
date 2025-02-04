@@ -49,7 +49,7 @@ local function ts_parse_settings(bufnr, adapter)
   -- If the user has disabled settings in the chat buffer, use the default settings
   if not config.display.chat.show_settings then
     if adapter then
-      _cached_settings[bufnr] = adapter:get_default_settings()
+      _cached_settings[bufnr] = adapter:make_from_schema()
       return _cached_settings[bufnr]
     end
   end
@@ -65,7 +65,7 @@ local function ts_parse_settings(bufnr, adapter)
   local end_line = -1
   if adapter then
     -- Account for the two YAML lines and the fact Tree-sitter is 0-indexed
-    end_line = vim.tbl_count(adapter:get_default_settings()) + 2 - 1
+    end_line = vim.tbl_count(adapter:make_from_schema()) + 2 - 1
   end
 
   for _, matches, _ in query:iter_matches(root, bufnr, 0, end_line) do
@@ -219,7 +219,7 @@ function Chat.new(args)
   util.fire("ChatModel", { bufnr = self.bufnr, model = self.adapter.schema.model.default })
   util.fire("ChatCreated", { bufnr = self.bufnr, from_prompt_library = self.from_prompt_library })
 
-  self:apply_settings(self.opts.settings)
+  self:apply_settings(schema.get_default(self.adapter.schema, self.opts.settings))
 
   self.ui = require("codecompanion.strategies.chat.ui").new({
     adapter = self.adapter,
@@ -243,7 +243,7 @@ function Chat.new(args)
       :set()
   end
 
-  self:set_system_prompt():set_autocmds()
+  self:add_system_prompt():set_autocmds()
 
   last_chat = self
 
@@ -364,14 +364,12 @@ function Chat:_get_settings_key(opts)
   return key_name, node
 end
 
----Apply custom settings to the chat buffer
----@param settings table
+---Format and apply settings to the chat buffer
+---@param settings? table
 ---@return self
 function Chat:apply_settings(settings)
-  -- Clear the cache
-  _cached_settings = {}
-
   self.settings = settings or schema.get_default(self.adapter.schema, self.opts.settings)
+  _cached_settings[self.bufnr] = self.settings
 
   return self
 end
@@ -419,12 +417,44 @@ function Chat:complete_models(request, callback)
   callback({ items = items, isIncomplete = false })
 end
 
+---Determine if a tag exists in the messages table
+---@param tag string
+---@param messages table
+---@return boolean
+local function has_tag(tag, messages)
+  return vim.tbl_contains(
+    vim.tbl_map(function(msg)
+      return msg.opts.tag
+    end, messages),
+    tag
+  )
+end
+
 ---Set the system prompt in the chat buffer
----@prompt? string
+---@params prompt? string
+---@params opts? table
 ---@return CodeCompanion.Chat
-function Chat:set_system_prompt(prompt)
+function Chat:add_system_prompt(prompt, opts)
   if self.opts and self.opts.ignore_system_prompt then
     return self
+  end
+
+  opts = opts or { visible = false, tag = "from_config" }
+
+  -- Don't add the same system prompt twice
+  if has_tag(opts.tag, self.messages) then
+    return self
+  end
+
+  -- Get the index of the last system prompt
+  local index
+  if not opts.index then
+    for i = #self.messages, 1, -1 do
+      if self.messages[i].role == config.constants.SYSTEM_ROLE then
+        index = i + 1
+        break
+      end
+    end
   end
 
   prompt = prompt or config.opts.system_prompt
@@ -442,8 +472,9 @@ function Chat:set_system_prompt(prompt)
     }
     system_prompt.id = make_id(system_prompt)
     system_prompt.cycle = self.cycle
-    system_prompt.opts = { visible = false }
-    table.insert(self.messages, 1, system_prompt)
+    system_prompt.opts = opts
+
+    table.insert(self.messages, index or 1, system_prompt)
   end
   return self
 end
@@ -451,21 +482,35 @@ end
 ---Toggle the system prompt in the chat buffer
 ---@return nil
 function Chat:toggle_system_prompt()
-  if self.messages[1] and self.messages[1].role == config.constants.SYSTEM_ROLE then
+  local has_system_prompt = vim.tbl_contains(
+    vim.tbl_map(function(msg)
+      return msg.opts.tag
+    end, self.messages),
+    "from_config"
+  )
+
+  if has_system_prompt then
+    self:remove_tagged_message("from_config")
     util.notify("Removed system prompt")
-    table.remove(self.messages, 1)
   else
+    self:add_system_prompt()
     util.notify("Added system prompt")
-    self:set_system_prompt()
   end
 end
 
----Remove the system prompt from the chat buffer
+---Remove a message with a given tag
+---@param tag string
 ---@return nil
-function Chat:remove_system_prompt()
-  if self.messages[1] and self.messages[1].role == config.constants.SYSTEM_ROLE then
-    table.remove(self.messages, 1)
-  end
+function Chat:remove_tagged_message(tag)
+  self.messages = vim
+    .iter(self.messages)
+    :filter(function(msg)
+      if msg.opts and msg.opts.tag == tag then
+        return false
+      end
+      return true
+    end)
+    :totable()
 end
 
 ---Parse the last message for any variables
@@ -599,11 +644,11 @@ function Chat:submit(opts)
 
   local message = ts_parse_messages(self, self.header_line)
 
-  -- Check if any watched buffers have any changes
+  -- Check if any watched buffers have changes
   self.watchers:check_for_changes(self)
 
   if not self:has_user_messages(message) then
-    return log:warn("No messages to submit")
+    return log:info("No messages to submit")
   end
 
   --- Only send the user's last message if we're not regenerating the response
@@ -654,20 +699,22 @@ function Chat:submit(opts)
           end
 
           local result = self.adapter.handlers.chat_output(self.adapter, data)
-          if result and result.status == CONSTANTS.STATUS_SUCCESS then
-            if result.output.role then
-              result.output.role = config.constants.LLM_ROLE
+          if result and result.status then
+            self.status = result.status
+            if self.status == CONSTANTS.STATUS_SUCCESS then
+              if result.output.role then
+                result.output.role = config.constants.LLM_ROLE
+              end
+              table.insert(output, result.output.content)
+              self:add_buf_message(result.output)
             end
-            self.status = CONSTANTS.STATUS_SUCCESS
-            table.insert(output, result.output.content)
-            self:add_buf_message(result.output)
           end
         end
       end,
       done = function()
         self:done(output)
       end,
-    }, { bufnr = bufnr })
+    }, { bufnr = bufnr, strategy = "chat" })
 end
 
 ---Increment the cycle count in the chat buffer
@@ -685,16 +732,17 @@ function Chat:set_range(modifier)
 end
 
 ---Method to call after the response from the LLM is received
----@param output table The output from the LLM
+---@param output? table The output from the LLM
 ---@return nil
 function Chat:done(output)
   self.current_request = nil
-  if self.status == CONSTANTS.STATUS_CANCELLING then
-    self.status = ""
+
+  -- Commonly, a status may not be set if the message exceeds a token limit
+  if not self.status or self.status == "" then
     return self:reset()
   end
 
-  if not vim.tbl_isempty(output) then
+  if output and not vim.tbl_isempty(output) then
     self:add_message({
       role = config.constants.LLM_ROLE,
       content = vim.trim(table.concat(output, "")),
@@ -703,8 +751,10 @@ function Chat:done(output)
 
   self:increment_cycle()
   self:add_buf_message({ role = config.constants.USER_ROLE, content = "" })
+
   local assistant_range = self.header_line
   self:set_range(-2)
+
   self.ui:display_tokens(self.parser, self.header_line)
   self.references:render()
 
@@ -712,7 +762,7 @@ function Chat:done(output)
     self.tools:parse_buffer(self, assistant_range, self.header_line - 1)
   end
 
-  log:info("Chat request completed")
+  log:info("Chat request finished")
   self:reset()
 
   if self.has_subscribers then
@@ -822,6 +872,7 @@ end
 function Chat:stop()
   local job
   self.status = CONSTANTS.STATUS_CANCELLING
+
   if self.current_tool then
     job = self.current_tool
     self.current_tool = nil
@@ -831,6 +882,7 @@ function Chat:stop()
       job:shutdown()
     end)
   end
+
   if self.current_request then
     job = self.current_request
     self.current_request = nil
@@ -840,6 +892,11 @@ function Chat:stop()
       end)
     end
   end
+
+  vim.schedule(function()
+    log:debug("Chat request cancelled")
+    self:done()
+  end)
 end
 
 ---Close the current chat buffer
@@ -1013,7 +1070,7 @@ function Chat:clear()
 
   log:trace("Clearing chat buffer")
   self.ui:render(self.context, self.messages, self.opts):set_extmarks(self.opts)
-  self:set_system_prompt()
+  self:add_system_prompt()
 end
 
 ---Display the chat buffer's settings and messages

@@ -1,10 +1,9 @@
+local adapter_utils = require("codecompanion.utils.adapters")
 local adapters = require("codecompanion.adapters")
 local client = require("codecompanion.http")
 local config = require("codecompanion.config")
-
 local keymaps = require("codecompanion.utils.keymaps")
 local log = require("codecompanion.utils.log")
-local msg_utils = require("codecompanion.utils.messages")
 local ui = require("codecompanion.utils.ui")
 local util = require("codecompanion.utils")
 
@@ -40,9 +39,10 @@ Please respond to this prompt in the format "<method>", placing the classificati
 2. No explanations or prose
 3. Use proper indentation for the target language
 4. Include language-appropriate comments when needed
-5. Use actual line breaks (not \n)
+5. Use actual line breaks (not `\n`)
 6. Preserve all whitespace
 7. Only include relevant code (no full file echoing)
+8. Be mindful that you may not need to return all of the code that the user has sent
 
 If you cannot provide clean file-ready code, reply with `<error>`]],
 }
@@ -223,7 +223,8 @@ function Inline:classify(user_input)
     })
   end
 
-  local prompt = msg_utils.merge_messages(msg_utils.pluck_messages(vim.deepcopy(self.classification.prompts), "user"))
+  local prompt =
+    adapter_utils.merge_messages(adapter_utils.pluck_messages(vim.deepcopy(self.classification.prompts), "user"))
   log:debug("Prompt to classify: %s", prompt)
 
   if not self.opts.placement then
@@ -276,7 +277,10 @@ function Inline:classify(user_input)
         },
       }),
       { callback = cb, done = done },
-      { bufnr = self.context.bufnr }
+      {
+        bufnr = self.context.bufnr,
+        strategy = "inline",
+      }
     )
   else
     self.classification.placement = self.opts.placement
@@ -304,7 +308,7 @@ function Inline:submit()
 
   -- Add the context from the chat buffer
   if not vim.tbl_isempty(self.chat_context) then
-    local messages = msg_utils.pluck_messages(self.chat_context, config.constants.LLM_ROLE)
+    local messages = adapter_utils.pluck_messages(self.chat_context, config.constants.LLM_ROLE)
 
     if #messages > 0 then
       table.insert(self.classification.prompts, {
@@ -383,7 +387,15 @@ function Inline:submit()
 
   self.current_request = client
     .new({ adapter = self.adapter:map_schema_to_params(), user_args = { event = "InlineSubmit" } })
-    :request(self.adapter:map_roles(self.classification.prompts), { callback = cb, done = done }, { bufnr = bufnr })
+    :request(self.adapter:map_roles(self.classification.prompts), { callback = cb, done = done }, {
+      bufnr = bufnr,
+      strategy = "inline",
+      adapter = {
+        name = self.adapter.name,
+        formatted_name = self.adapter.formatted_name,
+        model = self.adapter.schema.model.default,
+      },
+    })
 end
 
 ---When a defined prompt is sent alongside the user's input, we need to do some

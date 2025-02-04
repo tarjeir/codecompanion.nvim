@@ -29,13 +29,21 @@ local defaults = {
       proxy = nil, -- [protocol://]host[:port] e.g. socks5://127.0.0.1:9999
     },
   },
+  constants = constants,
   strategies = {
     -- CHAT STRATEGY ----------------------------------------------------------
     chat = {
       adapter = "copilot",
       roles = {
-        llm = "CodeCompanion", -- The markdown header content for the LLM's responses
-        user = "Me", -- The markdown header for your questions
+        ---The header name for the LLM's messages
+        ---@type string|fun(adapter: CodeCompanion.Adapter): string
+        llm = function(adapter)
+          return "CodeCompanion (" .. adapter.formatted_name .. ")"
+        end,
+
+        ---The header name for your messages
+        ---@type string
+        user = "Me",
       },
       agents = {
         ["full_stack_dev"] = {
@@ -845,6 +853,12 @@ This is the code, for context:
         pinned_buffer = " ",
         watched_buffer = "👀 ",
       },
+      debug_window = {
+        ---@return number|fun(): number
+        width = vim.o.columns - 5,
+        ---@return number|fun(): number
+        height = vim.o.lines - 2,
+      },
       window = {
         layout = "vertical", -- float|vertical|horizontal|buffer
         position = nil, -- left|right|top|bottom (nil will default depending on vim.opt.splitright|vim.opt.splitbelow)
@@ -960,7 +974,11 @@ local M = {
 ---@param args? table
 M.setup = function(args)
   args = args or {}
-  M.config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), { constants = vim.deepcopy(constants) }, args)
+  if args.constants then
+    vim.notify("codecompanion.nvim: Your config table cannot have field 'constants', vim.log.levels.ERROR")
+    return
+  end
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), args)
 end
 
 M.can_send_code = function()

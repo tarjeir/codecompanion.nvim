@@ -10,7 +10,8 @@ Let's take a look at the interface of an adapter as per the `adapter.lua` file:
 
 ```lua
 ---@class CodeCompanion.Adapter
----@field name string The name of the adapter
+---@field name string The name of the adapter e.g. "openai"
+---@field formatted_name string The formatted name of the adapter e.g. "OpenAI"
 ---@field roles table The mapping of roles in the config to the LLM's defined roles
 ---@field url string The URL of the LLM to connect to
 ---@field env? table Environment variables which can be referenced in the parameters
@@ -202,12 +203,15 @@ data: [DONE]
 
 Remember that we're streaming from the API so the request comes through in batches. Thankfully the `http.lua` file handles this and we just have to handle formatting the output into the chat buffer.
 
-The first thing to note with streaming endpoints is that they don't return valid JSON. In this case, the output is prefixed with `data: `. So let's remove it:
+The first thing to note with streaming endpoints is that they don't return valid JSON. In this case, the output is prefixed with `data: `. CodeCompanion comes with some handy utility functions to work with this:
 
 ```lua
+-- Put this at the top of your adapter
+local utils = require("codecompanion.utils.adapters")
+
 handlers = {
   chat_output = function(self, data)
-    data = data:sub(7)
+    data = utils.clean_streamed_data(data)
   end
 }
 ```
@@ -220,7 +224,7 @@ We can then decode the JSON using native vim functions:
 ```lua
 handlers = {
   chat_output = function(self, data)
-    data = data:sub(7)
+    data = utils.clean_streamed_data(data)
     local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
   end
 }
@@ -278,7 +282,7 @@ handlers = {
     local output = {}
 
     if data and data ~= "" then
-      data = data:sub(7)
+      data = utils.clean_streamed_data(data)
       local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
 
       local delta = json.choices[1].delta
@@ -382,6 +386,16 @@ There are two optional handlers that you can make use of: `setup` and `teardown`
 The `setup` handler will execute before the request is sent to the LLM's endpoint and before the environment variables have been set. This is leveraged in the Copilot adapter to obtain the token before it's resolved as part of the environment variables table. The `setup` handler **must** return a boolean value so the `http.lua` file can determine whether to proceed with the request.
 
 The `teardown` handler will execute once the request has completed and after `on_exit`.
+
+### The Utility File
+
+A lot of LLM endpoints claim to be "OpenAI Compatible" yet have odd quirks which prevent you from using the OpenAI Adapter. Common issues can be:
+
+- System messages have to be the first message (`anthropic`, `deepseek`)
+- System messages have to be one message (`anthropic`, `deepseek`)
+- Messages must follow a `User -> LLM -> User -> LLM` turn based flow (`deepseek`)
+
+To address this, an [adapter utilities](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/utils/adapters.lua) file has been created that you can leverage in building or extending your own adapters. Finally, always refer to the pre-built adapters as a reference point.
 
 ## Schema
 

@@ -4,6 +4,7 @@ local openai = require("codecompanion.adapters.openai")
 ---@class HuggingFace.Adapter: CodeCompanion.Adapter
 return {
   name = "huggingface",
+  formatted_name = "Hugging Face",
   roles = {
     llm = "assistant",
     user = "user",
@@ -35,7 +36,6 @@ return {
       if self.opts and self.opts.stream then
         self.parameters.stream = true
       end
-
       return true
     end,
 

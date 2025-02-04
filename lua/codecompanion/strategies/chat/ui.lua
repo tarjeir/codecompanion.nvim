@@ -3,12 +3,11 @@ Manages the UI for the chat buffer such as opening and closing splits/windows,
 parsing settings and rendering extmarks.
 --]]
 local config = require("codecompanion.config")
-local schema = require("codecompanion.schema")
-local yaml = require("codecompanion.utils.yaml")
-
 local log = require("codecompanion.utils.log")
+local schema = require("codecompanion.schema")
 local ui = require("codecompanion.utils.ui")
 local util = require("codecompanion.utils")
+local yaml = require("codecompanion.utils.yaml")
 
 local api = vim.api
 
@@ -20,6 +19,17 @@ local CONSTANTS = {
 
   AUTOCMD_GROUP = "codecompanion.chat.ui",
 }
+
+---Set the LLM role based on the adapter
+---@param role string|function
+---@param adapter table
+---@return string
+local function set_llm_role(role, adapter)
+  if type(role) == "function" then
+    return role(adapter)
+  end
+  return role
+end
 
 ---@class CodeCompanion.Chat.UI
 local UI = {}
@@ -76,7 +86,7 @@ function UI:open()
       row = window.row or math.floor((vim.o.lines - height) / 2),
       col = window.col or math.floor((vim.o.columns - width) / 2),
       border = window.border,
-      title = "Code Companion",
+      title = window.title or "CodeCompanion",
       title_pos = "center",
       zindex = 45,
     }
@@ -190,6 +200,11 @@ end
 ---@param role string The role of the user to display in the header
 ---@return nil
 function UI:set_header(tbl, role)
+  -- If the role is the LLM then we need to swap this out for a user func
+  if type(role) == "function" then
+    role = set_llm_role(role, self.adapter)
+  end
+
   table.insert(tbl, self:format_header(role))
   table.insert(tbl, "")
 end
@@ -220,7 +235,7 @@ function UI:render(context, messages, opts)
           self:set_header(lines, self.roles.user)
         end
         if msg.role == config.constants.LLM_ROLE and last_set_role ~= config.constants.LLM_ROLE then
-          self:set_header(lines, self.roles.llm)
+          self:set_header(lines, set_llm_role(self.roles.llm, self.adapter))
         end
 
         for _, text in ipairs(vim.split(msg.content, "\n", { plain = true, trimempty = true })) do
@@ -291,9 +306,10 @@ function UI:render_headers()
 
   local separator = config.display.chat.separator
   local lines = api.nvim_buf_get_lines(self.bufnr, 0, -1, false)
+  local llm_role = set_llm_role(self.roles.llm, self.adapter)
 
   for line, content in ipairs(lines) do
-    if content:match("^## " .. self.roles.user) or content:match("^## " .. self.roles.llm) then
+    if content:match("^## " .. vim.pesc(self.roles.user)) or content:match("^## " .. vim.pesc(llm_role)) then
       local col = vim.fn.strwidth(content) - vim.fn.strwidth(separator)
 
       api.nvim_buf_set_extmark(self.bufnr, self.header_ns, line - 1, col, {

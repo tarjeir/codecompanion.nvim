@@ -1,8 +1,8 @@
-local curl = require("plenary.curl")
-
 local config = require("codecompanion.config")
+local curl = require("plenary.curl")
 local log = require("codecompanion.utils.log")
 local openai = require("codecompanion.adapters.openai")
+local utils = require("codecompanion.utils.adapters")
 
 ---@alias CopilotOAuthToken string|nil
 local _oauth_token
@@ -60,7 +60,13 @@ local function get_token()
 
   for _, file_path in ipairs(file_paths) do
     if vim.uv.fs_stat(file_path) then
-      local userdata = vim.json.decode(vim.fn.readfile(file_path)[1])
+      local userdata = vim.fn.readfile(file_path)
+
+      if vim.islist(userdata) then
+        userdata = table.concat(userdata, " ")
+      end
+
+      local userdata = vim.json.decode(userdata)
       for key, value in pairs(userdata) do
         if string.find(key, "github.com") then
           return value.oauth_token
@@ -98,20 +104,10 @@ local function authorize_token()
   return _github_token
 end
 
----Prepare data to be parsed as JSON
----@param data string | { body: string }
----@return string
-local prepare_data_for_json = function(data)
-  if type(data) == "table" then
-    return data.body
-  end
-  local find_json_start = string.find(data, "{") or 1
-  return string.sub(data, find_json_start)
-end
-
 ---@class Copilot.Adapter: CodeCompanion.Adapter
 return {
   name = "copilot",
+  formatted_name = "Copilot",
   roles = {
     llm = "assistant",
     user = "user",
@@ -176,7 +172,7 @@ return {
     end,
     tokens = function(self, data)
       if data and data ~= "" then
-        local data_mod = prepare_data_for_json(data)
+        local data_mod = utils.clean_streamed_data(data)
         local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
 
         if ok then
@@ -210,14 +206,37 @@ return {
       ---@type string|fun(): string
       default = "gpt-4o-2024-08-06",
       choices = {
-        "gpt-4o-2024-08-06",
+        ["o3-mini-2025-01-31"] = { opts = { can_reason = true } },
+        ["o1-2024-12-17"] = { opts = { can_reason = true } },
+        ["o1-mini-2024-09-12"] = { opts = { can_reason = true } },
         "claude-3.5-sonnet",
-        "o1-2024-12-17",
-        "o1-mini-2024-09-12",
+        "gpt-4o-2024-08-06",
+      },
+    },
+    reasoning_effort = {
+      order = 2,
+      mapping = "parameters",
+      type = "string",
+      optional = true,
+      condition = function(schema)
+        local model = schema.model.default
+        if type(model) == "function" then
+          model = model()
+        end
+        if schema.model.choices[model] and schema.model.choices[model].opts then
+          return schema.model.choices[model].opts.can_reason
+        end
+      end,
+      default = "medium",
+      desc = "Constrains effort on reasoning for reasoning models. Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response.",
+      choices = {
+        "high",
+        "medium",
+        "low",
       },
     },
     temperature = {
-      order = 2,
+      order = 3,
       mapping = "parameters",
       type = "number",
       default = 0,
@@ -231,14 +250,14 @@ return {
       desc = "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. We generally recommend altering this or top_p but not both.",
     },
     max_tokens = {
-      order = 3,
+      order = 4,
       mapping = "parameters",
       type = "integer",
       default = 4096,
       desc = "The maximum number of tokens to generate in the chat completion. The total length of input tokens and generated tokens is limited by the model's context length.",
     },
     top_p = {
-      order = 4,
+      order = 5,
       mapping = "parameters",
       type = "number",
       default = 1,
@@ -252,7 +271,7 @@ return {
       desc = "An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both.",
     },
     n = {
-      order = 5,
+      order = 6,
       mapping = "parameters",
       type = "number",
       default = 1,
