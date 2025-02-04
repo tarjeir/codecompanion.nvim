@@ -2,13 +2,10 @@ local log = require("codecompanion.utils.log")
 local message_utils = require("codecompanion.utils.messages")
 
 local perplexity_models = {
-  "llama-3.1-sonar-small-128k-online",
-  "llama-3.1-sonar-large-128k-online",
-  "llama-3.1-sonar-huge-128k-online",
-  "llama-3.1-sonar-small-128k-chat",
-  "llama-3.1-sonar-large-128k-chat",
-  "llama-3.1-8b-instruct",
-  "llama-3.1-70b-instruct",
+  "sonar-reasoning-pro",
+  "sonar-reasoning",
+  "sonar-pro",
+  "sonar",
 }
 
 ---@class Perplexity.Adapter: CodeCompanion.Adapter
@@ -171,7 +168,7 @@ return {
   schema = {
     model = {
       type = "enum",
-      default = "llama-3.1-8b-instruct",
+      default = "sonar",
       choices = function()
         return perplexity_models
       end,
