@@ -1,5 +1,33 @@
 # Changelog
 
+## [11.27.1](https://github.com/olimorris/codecompanion.nvim/compare/v11.27.0...v11.27.1) (2025-02-07)
+
+
+### Bug Fixes
+
+* delete diff buffers instead of closing ([#852](https://github.com/olimorris/codecompanion.nvim/issues/852)) ([4c48bd3](https://github.com/olimorris/codecompanion.nvim/commit/4c48bd336e900ed7bf3be95689ac1cc147b3701e))
+
+## [11.27.0](https://github.com/olimorris/codecompanion.nvim/compare/v11.26.0...v11.27.0) (2025-02-07)
+
+
+### Features
+
+* **copilot:** add support for gemini 2.0 flash ([#855](https://github.com/olimorris/codecompanion.nvim/issues/855)) ([#856](https://github.com/olimorris/codecompanion.nvim/issues/856)) ([c0ea1c0](https://github.com/olimorris/codecompanion.nvim/commit/c0ea1c0faf57a61c1121532cad9bbeea58dcd0cc))
+
+## [11.26.0](https://github.com/olimorris/codecompanion.nvim/compare/v11.25.3...v11.26.0) (2025-02-05)
+
+
+### Features
+
+* **slash_cmds:** can be functions and modules ([#844](https://github.com/olimorris/codecompanion.nvim/issues/844)) ([59ea59e](https://github.com/olimorris/codecompanion.nvim/commit/59ea59e3c2bd336334b706a99446b792c32464bf))
+
+## [11.25.3](https://github.com/olimorris/codecompanion.nvim/compare/v11.25.2...v11.25.3) (2025-02-05)
+
+
+### Bug Fixes
+
+* **http:** prevent model from no schema.model ([#839](https://github.com/olimorris/codecompanion.nvim/issues/839)) ([abaf645](https://github.com/olimorris/codecompanion.nvim/commit/abaf645cfcb64bddc8f9124fb4bf71999372e752))
+
 ## [11.25.2](https://github.com/olimorris/codecompanion.nvim/compare/v11.25.1...v11.25.2) (2025-02-03)
 
 
